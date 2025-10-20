@@ -36,13 +36,13 @@ CORS(app, resources={
     }
 })
 
-# Configure Socket.IO CORS
-# Note: engineio does not support regex origins; use explicit list or "*" during debugging.
-socketio_allowed = ['http://localhost:3000', 'http://127.0.0.1:3000']
-if frontend_origin:
-    socketio_allowed.append(frontend_origin.rstrip('/'))
-# Temporarily allow all origins to unblock deployed debugging. Restrict in production.
-socketio = SocketIO(app, cors_allowed_origins=os.getenv('SOCKETIO_CORS', '*'))
+# Configure Socket.IO to allow Vercel frontend
+socketio = SocketIO(app, cors_allowed_origins=[
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://*.vercel.app",
+    "https://project-ageis.vercel.app/"  # Update with your actual domain
+])
 db = get_db(app)
 crypto_service = QuantumCryptoService()
 
