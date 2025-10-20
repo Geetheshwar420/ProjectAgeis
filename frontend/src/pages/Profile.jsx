@@ -1,24 +1,38 @@
+
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, message, Card, Typography, Popconfirm, Modal } from 'antd';
+import { Form, Input, Button, message, Typography, Popconfirm, Modal } from 'antd';
 import { UserOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import FriendRequests from '../components/FriendRequests';
 import styled from 'styled-components';
+import { motion } from 'framer-motion';
 
 const { Title } = Typography;
 
-const ProfileWrapper = styled.div`
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background: #f0f2f5;
+const ProfileContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #6e8efb, #a777e3);
 `;
 
-const ProfileCard = styled(Card)`
-    width: 500px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+const ProfileForm = styled.div`
+  padding: 40px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  width: 500px;
+  text-align: center;
+`;
+
+const FriendRequestsWrapper = styled.div`
+  margin-top: 30px;
+  width: 500px;
+  max-width: 100%;
 `;
 
 const Profile = () => {
@@ -94,66 +108,72 @@ const Profile = () => {
     };
 
     return (
-        <ProfileWrapper>
-            <ProfileCard>
-                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <Title level={2}>User Profile</Title>
-                </div>
-                {user && (
-                    <Form
-                        form={form}
-                        name="profile"
-                        onFinish={onFinish}
-                        initialValues={user}
-                    >
-                        <Form.Item
-                            name="username"
-                            rules={[{ required: true, message: 'Please input your username!' }]}
+        <ProfileContainer>
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+            >
+                <ProfileForm>
+                    <Title level={2} style={{ marginBottom: '24px' }}>User Profile</Title>
+                    {user && (
+                        <Form
+                            form={form}
+                            name="profile"
+                            onFinish={onFinish}
+                            initialValues={user}
                         >
-                            <Input prefix={<UserOutlined />} placeholder="Username" autoComplete="username" />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="email"
-                            rules={[{ required: true, type: 'email', message: 'Please input a valid email!' }]}
-                        >
-                            <Input prefix={<MailOutlined />} placeholder="Email" autoComplete="email" />
-                        </Form.Item>
-
-                        <Form.Item>
-                            <Button type="primary" htmlType="submit" loading={loading} style={{ width: '100%' }}>
-                                Update Profile
-                            </Button>
-                        </Form.Item>
-
-                        <Form.Item>
-                            <Button type="default" onClick={() => setIsPasswordModalVisible(true)} style={{ width: '100%' }}>
-                                Change Password
-                            </Button>
-                        </Form.Item>
-
-                        <Form.Item>
-                            <Button type="default" onClick={handleLogout} style={{ width: '100%' }}>
-                                Logout
-                            </Button>
-                        </Form.Item>
-
-                        <Form.Item>
-                            <Popconfirm
-                                title="Are you sure you want to delete your account?"
-                                onConfirm={handleDelete}
-                                okText="Yes"
-                                cancelText="No"
+                            <Form.Item
+                                name="username"
+                                rules={[{ required: true, message: 'Please input your username!' }]}
                             >
-                                <Button type="danger" style={{ width: '100%' }}>
-                                    Delete Account
+                                <Input prefix={<UserOutlined />} placeholder="Username" autoComplete="username" />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="email"
+                                rules={[{ required: true, type: 'email', message: 'Please input a valid email!' }]}
+                            >
+                                <Input prefix={<MailOutlined />} placeholder="Email" autoComplete="email" />
+                            </Form.Item>
+
+                            <Form.Item>
+                                <Button type="primary" htmlType="submit" loading={loading} style={{ width: '100%' }}>
+                                    Update Profile
                                 </Button>
-                            </Popconfirm>
-                        </Form.Item>
-                    </Form>
-                )}
-            </ProfileCard>
-            <FriendRequests currentUser={user} />
+                            </Form.Item>
+
+                            <Form.Item>
+                                <Button type="default" onClick={() => setIsPasswordModalVisible(true)} style={{ width: '100%' }}>
+                                    Change Password
+                                </Button>
+                            </Form.Item>
+
+                            <Form.Item>
+                                <Button type="default" onClick={handleLogout} style={{ width: '100%' }}>
+                                    Logout
+                                </Button>
+                            </Form.Item>
+
+                            <Form.Item>
+                                <Popconfirm
+                                    title="Are you sure you want to delete your account?"
+                                    onConfirm={handleDelete}
+                                    okText="Yes"
+                                    cancelText="No"
+                                >
+                                    <Button type="danger" style={{ width: '100%' }}>
+                                        Delete Account
+                                    </Button>
+                                </Popconfirm>
+                            </Form.Item>
+                        </Form>
+                    )}
+                </ProfileForm>
+            </motion.div>
+            <FriendRequestsWrapper>
+                <FriendRequests currentUser={user} />
+            </FriendRequestsWrapper>
             <Modal
                 title="Change Password"
                 visible={isPasswordModalVisible}
@@ -198,8 +218,9 @@ const Profile = () => {
                     </Form.Item>
                 </Form>
             </Modal>
-        </ProfileWrapper>
+        </ProfileContainer>
     );
 };
 
 export default Profile;
+

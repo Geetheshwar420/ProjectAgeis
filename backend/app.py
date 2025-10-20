@@ -5,6 +5,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from utils import create_app, get_db
 from db_models import User, Message
 from crypto.quantum_service import QuantumCryptoService
+from datetime import datetime, timezone
 
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
@@ -55,8 +56,11 @@ def get_users():
     return jsonify(users), 200
 
 @socketio.on('connect')
+@jwt_required()
 def handle_connect():
-    print('Client connected')
+    user_id = get_jwt_identity()
+    join_room(user_id)
+    print(f'Client {user_id} connected and joined room.')
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -70,20 +74,30 @@ def handle_send_message(data):
     signature = data.get('signature')
     nonce = data.get('nonce')
     tag = data.get('tag')
-    formatted_timestamp = data.get('formatted_timestamp')
-
+    # DO NOT trust client-provided timestamp - generate server-side
+    
+    # Create message with server-generated timestamp
     message = Message(sender_id, recipient_id, encrypted_message, signature, nonce, tag)
-    message.save(db)
+    message_id = message.save(db)
+    
+    # Generate server-side ISO 8601 formatted timestamp with timezone
+    server_timestamp = datetime.now(timezone.utc).isoformat()
+    formatted_timestamp = message.formatted_timestamp  # Use the server-generated formatted timestamp
 
-    emit('new_message', {
+    message_data = {
+        '_id': str(message_id),
         'sender_id': sender_id,
         'recipient_id': recipient_id,
         'encrypted_message': encrypted_message,
         'signature': signature,
         'nonce': nonce,
         'tag': tag,
-        'formatted_timestamp': formatted_timestamp
-    }, broadcast=True)
+        'formatted_timestamp': formatted_timestamp,
+        'timestamp': server_timestamp  # ISO 8601 with timezone for ordering/auditing
+    }
+
+    emit('new_message', message_data, room=recipient_id)
+    emit('new_message', message_data, room=sender_id)
 
 @app.route('/initiate_qke', methods=['POST'])
 @jwt_required()
@@ -178,9 +192,12 @@ def get_messages():
                 {'sender_id': user_a, 'recipient_id': user_b},
                 {'sender_id': user_b, 'recipient_id': user_a}
             ]
-        },
-        {'_id': 0}
+        }
     ).sort('timestamp', 1))
+    
+    # Convert ObjectId to string for JSON serialization
+    for msg in messages:
+        msg['_id'] = str(msg['_id'])
     
     # Return messages as-is (encrypted) - client will decrypt them
     return jsonify(messages)

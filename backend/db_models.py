@@ -48,8 +48,12 @@ class Message:
         self.signature = signature
         self.nonce = nonce
         self.tag = tag
-        self.timestamp = datetime.datetime.utcnow()
-        self.formatted_timestamp = self.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        # Generate server-side timestamp - never trust client input
+        self.timestamp = datetime.datetime.now(datetime.timezone.utc)
+        # Human-readable format for display
+        self.formatted_timestamp = self.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')
+        # ISO 8601 format with timezone for ordering and auditing
+        self.iso_timestamp = self.timestamp.isoformat()
 
     def save(self, db):
         messages_collection = db.messages
@@ -58,8 +62,9 @@ class Message:
             'recipient_id': self.recipient_id,
             'encrypted_message': self.encrypted_message,
             'signature': self.signature,
-            'timestamp': self.timestamp,
-            'formatted_timestamp': self.formatted_timestamp
+            'timestamp': self.timestamp,  # Native datetime for MongoDB queries
+            'formatted_timestamp': self.formatted_timestamp,  # Human-readable
+            'iso_timestamp': self.iso_timestamp  # ISO 8601 for API/ordering
         }
         
         # Add nonce and tag if provided

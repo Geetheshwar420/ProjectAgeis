@@ -5,8 +5,8 @@ import { Modal } from 'antd';
 import api from '../utils/api';
 import io from 'socket.io-client';
 import styled from 'styled-components';
+import { MotiView } from 'moti';
 import { Link } from 'react-router-dom';
-
 import FriendRequests from '../components/FriendRequests';
 
 const { Sider, Content, Footer } = Layout;
@@ -19,44 +19,73 @@ const ChatLayout = styled(Layout)`
 const ChatSider = styled(Sider)`
     background: #fff;
     border-right: 1px solid #e8e8e8;
+    display: flex;
+    flex-direction: column;
+`;
+
+const SiderHeader = styled.div`
+    padding: 16px;
+    border-bottom: 1px solid #e8e8e8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+`;
+
+const UserMenu = styled(Menu)`
+    flex: 1;
+    overflow-y: auto;
+`;
+
+const SiderFooter = styled.div`
+    padding: 16px;
+    border-top: 1px solid #e8e8e8;
 `;
 
 const ChatContent = styled(Content)`
     display: flex;
     flex-direction: column;
-    padding: 24px;
+    background: #fff;
+`;
+
+const ChatHeader = styled.div`
+    padding: 16px 24px;
+    border-bottom: 1px solid #e8e8e8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 `;
 
 const MessageList = styled.div`
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    padding: 24px;
 `;
 
 const MessageItem = styled.div`
-    margin-bottom: 16px;
+    margin-bottom: 20px;
     display: flex;
     flex-direction: ${props => props.isCurrentUser ? 'row-reverse' : 'row'};
+    align-items: flex-end;
 `;
 
 const MessageBubble = styled.div`
-    background: ${props => props.isCurrentUser ? '#1890ff' : '#e4e6eb'};
+    background: ${props => props.isCurrentUser ? 'linear-gradient(135deg, #6e8efb, #a777e3)' : '#f0f2f5'};
     color: ${props => props.isCurrentUser ? 'white' : 'black'};
-    padding: 8px 12px;
-    border-radius: 18px;
+    padding: 12px 16px;
+    border-radius: 20px;
     max-width: 70%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 `;
 
 const MessageTimestamp = styled.div`
     font-size: 12px;
     color: gray;
-    margin-top: 4px;
-    text-align: ${props => props.isCurrentUser ? 'right' : 'left'};
+    margin: 0 10px;
 `;
 
 const ChatFooter = styled(Footer)`
     background: #fff;
-    padding: 12px 24px;
+    padding: 16px 24px;
     border-top: 1px solid #e8e8e8;
 `;
 
@@ -127,7 +156,24 @@ const Chat = () => {
 
     useEffect(() => {
         const token = localStorage.getItem('access_token');
-        const newSocket = io('http://localhost:5000', {
+        
+        // Dynamically determine the socket URL based on current hostname
+        // Uses page's protocol to prevent mixed-content blocking
+        const getSocketUrl = () => {
+            if (process.env.REACT_APP_API_URL) {
+                return process.env.REACT_APP_API_URL;
+            }
+            
+            // Use the page's current protocol to prevent mixed-content blocking
+            const protocol = window.location.protocol; // 'http:' or 'https:'
+            const hostname = window.location.hostname || 'localhost';
+            const port = process.env.REACT_APP_API_PORT || '5000';
+            
+            // Construct URL avoiding duplicate slashes
+            return `${protocol}//${hostname}:${port}`;
+        };
+        
+        const newSocket = io(getSocketUrl(), {
             query: { token }
         });
         setSocket(newSocket);
@@ -261,46 +307,56 @@ const Chat = () => {
 
     return (
         <ChatLayout>
-            <ChatSider width={250}>
-                <div style={{ padding: '16px', borderBottom: '1px solid #e8e8e8' }}>
+            <ChatSider width={300}>
+                <SiderHeader>
                     <Avatar size="large" src={`https://i.pravatar.cc/150?u=${currentUser?.username}`} />
                     <span style={{ marginLeft: '12px', fontWeight: 'bold' }}>{currentUser?.username}</span>
-                    <Link to="/profile" style={{ float: 'right' }}>Profile</Link>
-                </div>
-                <Menu theme="light" mode="inline" onSelect={({ key }) => handleUserSelect(users.find(u => u.username === key))}>
+                    <Link to="/profile">
+                        <Button type="text">Profile</Button>
+                    </Link>
+                </SiderHeader>
+                <UserMenu theme="light" mode="inline" onSelect={({ key }) => handleUserSelect(users.find(u => u.username === key))}>
                     {users.map((user) => (
                         <Menu.Item key={user.username}>
                             <Avatar size="small" src={`https://i.pravatar.cc/150?u=${user.username}`} />
                             <span style={{ marginLeft: '8px' }}>{user.username}</span>
                         </Menu.Item>
                     ))}
-                </Menu>
-                <div style={{ padding: '16px' }}>
+                </UserMenu>
+                <SiderFooter>
                     <Input.Search placeholder="Find users" onSearch={handleSearch} />
-                </div>
-                <FriendRequests currentUser={currentUser} />
+                    <FriendRequests currentUser={currentUser} />
+                </SiderFooter>
             </ChatSider>
             <Layout>
                 {selectedUser ? (
                     <>
-                        <Content style={{ display: 'flex', flexDirection: 'column', padding: '24px' }}>
-                            <div style={{ borderBottom: '1px solid #e8e8e8', paddingBottom: '12px', marginBottom: '12px' }}>
-                                <h2>{selectedUser.username}</h2>
-                                {session && <span style={{ color: 'green' }}><LockOutlined /> Secure</span>}
-                            </div>
+                        <ChatHeader>
+                            <h2>{selectedUser.username}</h2>
+                            {session && <span style={{ color: 'green' }}><LockOutlined /> Secure</span>}
+                        </ChatHeader>
+                        <ChatContent>
                             <MessageList ref={messageListRef}>
                                 {messages.map((msg, index) => (
-                                    <MessageItem key={index} isCurrentUser={msg.sender_id === currentUser.username}>
-                                        <MessageBubble isCurrentUser={msg.sender_id === currentUser.username}>
-                                            {msg.encrypted_message}
-                                        </MessageBubble>
-                                        <MessageTimestamp isCurrentUser={msg.sender_id === currentUser.username}>
-                                            {msg.formatted_timestamp}
-                                        </MessageTimestamp>
-                                    </MessageItem>
+                                    <MotiView
+                                        key={msg._id || `${msg.sender_id}-${msg.timestamp || msg.formatted_timestamp}-${index}`}
+                                        from={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.5 }}
+                                    >
+                                        <MessageItem isCurrentUser={msg.sender_id === currentUser.username}>
+                                            <Avatar src={`https://i.pravatar.cc/150?u=${msg.sender_id}`} />
+                                            <MessageBubble isCurrentUser={msg.sender_id === currentUser.username}>
+                                                {msg.encrypted_message}
+                                            </MessageBubble>
+                                            <MessageTimestamp isCurrentUser={msg.sender_id === currentUser.username}>
+                                                {msg.formatted_timestamp}
+                                            </MessageTimestamp>
+                                        </MessageItem>
+                                    </MotiView>
                                 ))}
                             </MessageList>
-                        </Content>
+                        </ChatContent>
                         <ChatFooter>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <Input
