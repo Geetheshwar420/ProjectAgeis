@@ -7,7 +7,7 @@ from db_models import User, Message
 from crypto.quantum_service import QuantumCryptoService
 from datetime import datetime, timezone
 
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, decode_token
 
 app = create_app()
 app.config['JWT_SECRET_KEY'] = 'super-secret'  # Change this in your production app
@@ -77,11 +77,37 @@ def get_users():
     return jsonify(users), 200
 
 @socketio.on('connect')
-@jwt_required()
-def handle_connect():
-    user_id = get_jwt_identity()
-    join_room(user_id)
-    print(f'Client {user_id} connected and joined room.')
+def handle_connect(auth):
+    """
+    Handle SocketIO connection with manual JWT validation.
+    Expects the client to send JWT token in auth dict (e.g., auth={'token': 'jwt_token_here'}).
+    """
+    try:
+        # Extract token from auth parameters
+        if not auth or 'token' not in auth:
+            print('Connection rejected: Missing token in auth')
+            emit('error', {'message': 'Authentication required'})
+            return False  # Reject connection
+        
+        token = auth['token']
+        
+        # Manually decode and validate the JWT token
+        try:
+            decoded = decode_token(token)
+            user_id = decoded['sub']  # 'sub' is the standard JWT claim for identity
+        except Exception as e:
+            print(f'Connection rejected: Invalid token - {str(e)}')
+            emit('error', {'message': 'Invalid or expired token'})
+            return False  # Reject connection
+        
+        # Join room with the authenticated user's ID
+        join_room(user_id)
+        print(f'Client {user_id} connected and joined room.')
+        
+    except Exception as e:
+        print(f'Connection error: {str(e)}')
+        emit('error', {'message': 'Connection failed'})
+        return False  # Reject connection
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -98,12 +124,14 @@ def handle_send_message(data):
     # DO NOT trust client-provided timestamp - generate server-side
     
     # Create message with server-generated timestamp
+    # The Message class generates a single timestamp used for DB and client
     message = Message(sender_id, recipient_id, encrypted_message, signature, nonce, tag)
     message_id = message.save(db)
     
-    # Generate server-side ISO 8601 formatted timestamp with timezone
-    server_timestamp = datetime.now(timezone.utc).isoformat()
-    formatted_timestamp = message.formatted_timestamp  # Use the server-generated formatted timestamp
+    # Use the same timestamp from the Message object for consistency
+    # This ensures DB and client receive identical timestamps
+    formatted_timestamp = message.formatted_timestamp  # Human-readable format
+    iso_timestamp = message.iso_timestamp  # ISO 8601 for ordering/auditing
 
     message_data = {
         '_id': str(message_id),
@@ -114,7 +142,7 @@ def handle_send_message(data):
         'nonce': nonce,
         'tag': tag,
         'formatted_timestamp': formatted_timestamp,
-        'timestamp': server_timestamp  # ISO 8601 with timezone for ordering/auditing
+        'timestamp': iso_timestamp  # ISO 8601 with timezone for ordering/auditing
     }
 
     emit('new_message', message_data, room=recipient_id)

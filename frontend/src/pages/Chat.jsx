@@ -5,7 +5,7 @@ import { Modal } from 'antd';
 import api from '../utils/api';
 import io from 'socket.io-client';
 import styled from 'styled-components';
-import { MotiView } from 'moti';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import FriendRequests from '../components/FriendRequests';
 
@@ -338,9 +338,9 @@ const Chat = () => {
                         <ChatContent>
                             <MessageList ref={messageListRef}>
                                 {messages.map((msg, index) => (
-                                    <MotiView
+                                    <motion.div
                                         key={msg._id || `${msg.sender_id}-${msg.timestamp || msg.formatted_timestamp}-${index}`}
-                                        from={{ opacity: 0, y: 20 }}
+                                        initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.5 }}
                                     >
@@ -353,7 +353,7 @@ const Chat = () => {
                                                 {msg.formatted_timestamp}
                                             </MessageTimestamp>
                                         </MessageItem>
-                                    </MotiView>
+                                    </motion.div>
                                 ))}
                             </MessageList>
                         </ChatContent>
