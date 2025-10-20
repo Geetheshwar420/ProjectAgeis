@@ -12,8 +12,29 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 app = create_app()
 app.config['JWT_SECRET_KEY'] = 'super-secret'  # Change this in your production app
 jwt = JWTManager(app)
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Configure CORS to allow Vercel frontend and local development
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:3000",  # Local development
+            "http://127.0.0.1:3000",
+            "https://*.vercel.app",  # All Vercel preview deployments
+            "https://projectageis.vercel.app"  # Production Vercel domain (update with your actual domain)
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
+
+# Configure Socket.IO to allow Vercel frontend
+socketio = SocketIO(app, cors_allowed_origins=[
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://*.vercel.app",
+    "https://projectageis.vercel.app"  # Update with your actual domain
+])
 db = get_db(app)
 crypto_service = QuantumCryptoService()
 
