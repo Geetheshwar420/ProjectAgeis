@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify
+import os
+import re
 from bson.objectid import ObjectId
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -14,29 +16,58 @@ app.config['JWT_SECRET_KEY'] = 'super-secret'  # Change this in your production 
 jwt = JWTManager(app)
 
 # Configure CORS to allow Vercel frontend and local development
+# Use regex for *.vercel.app and allow an explicit FRONTEND_ORIGIN override
+frontend_origin = os.getenv('FRONTEND_ORIGIN')
+vercel_regex = re.compile(r'^https://.*\.vercel\.app$')
+allowed_cors_origins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    vercel_regex,
+]
+if frontend_origin:
+    allowed_cors_origins.append(frontend_origin.rstrip('/'))
+
 CORS(app, resources={
     r"/*": {
-        "origins": [
-            "http://localhost:3000",  # Local development
-            "http://127.0.0.1:3000",
-            "https://*.vercel.app",  # All Vercel preview deployments
-            "https://projectageis.vercel.app"  # Production Vercel domain (update with your actual domain)
-        ],
+        "origins": allowed_cors_origins,
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
+        "supports_credentials": True,
     }
 })
 
-# Configure Socket.IO to allow Vercel frontend
-socketio = SocketIO(app, cors_allowed_origins=[
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://*.vercel.app",
-    "https://projectageis.vercel.app"  # Update with your actual domain
-])
+# Configure Socket.IO CORS
+# Note: engineio does not support regex origins; use explicit list or "*" during debugging.
+socketio_allowed = ['http://localhost:3000', 'http://127.0.0.1:3000']
+if frontend_origin:
+    socketio_allowed.append(frontend_origin.rstrip('/'))
+# Temporarily allow all origins to unblock deployed debugging. Restrict in production.
+socketio = SocketIO(app, cors_allowed_origins=os.getenv('SOCKETIO_CORS', '*'))
 db = get_db(app)
 crypto_service = QuantumCryptoService()
+
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    """Basic health check with MongoDB ping and CORS origin echo."""
+    details = {
+        'status': 'ok',
+        'mongo': {'ok': False},
+        'cors': {
+            'allowed': [str(o) for o in allowed_cors_origins],
+        },
+        'env': {
+            'frontend_origin_set': bool(frontend_origin),
+            'mongo_uri_set': bool(os.getenv('MONGO_URI')),
+        }
+    }
+    try:
+        # Attempt a ping to confirm DB connectivity
+        db.command('ping')
+        details['mongo']['ok'] = True
+    except Exception as e:
+        details['status'] = 'degraded'
+        details['mongo']['error'] = str(e)
+    return jsonify(details), 200 if details['mongo']['ok'] else 500
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -45,16 +76,20 @@ def register():
     password = data.get('password')
     email = data.get('email')
 
-    if User.find_by_username(db, username):
-        return jsonify({'error': 'Username already exists'}), 400
+    try:
+        if User.find_by_username(db, username):
+            return jsonify({'error': 'Username already exists'}), 400
 
-    if User.find_by_email(db, email):
-        return jsonify({'error': 'Email already exists'}), 400
+        if User.find_by_email(db, email):
+            return jsonify({'error': 'Email already exists'}), 400
 
-    user = User(username, password, email)
-    user.save(db)
+        user = User(username, password, email)
+        user.save(db)
 
-    return jsonify({'message': 'User created successfully'}), 201
+        return jsonify({'message': 'User created successfully'}), 201
+    except Exception as e:
+        print(f'Register error: {e}')
+        return jsonify({'error': 'Database unavailable. Please try again later.'}), 503
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -62,7 +97,11 @@ def login():
     username = data.get('username')
     password = data.get('password')
 
-    user = User.find_by_username(db, username)
+    try:
+        user = User.find_by_username(db, username)
+    except Exception as e:
+        print(f'Login DB error: {e}')
+        return jsonify({'error': 'Service unavailable (database).'}), 503
 
     if user and User.check_password(user, password):
         access_token = create_access_token(identity=user['username'])
