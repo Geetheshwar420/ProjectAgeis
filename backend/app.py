@@ -1,3 +1,7 @@
+# Monkey-patch eventlet FIRST to avoid runtime warnings with gunicorn --worker-class eventlet
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, request, jsonify, session
 import os
 import re
