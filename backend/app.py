@@ -52,7 +52,21 @@ def init_app_database():
                     WHERE type='table' AND name='users'
                 """)
             
-            table_exists = cursor.fetchone()[0] if db.db_type == "postgresql" else bool(cursor.fetchone())
+            result = cursor.fetchone()
+            # Handle different result formats
+            if db.db_type == "postgresql":
+                # PostgreSQL with RealDictCursor returns dict-like rows
+                # Query returns {'exists': True/False}
+                if result and isinstance(result, dict):
+                    table_exists = result.get('exists', False)
+                elif result:
+                    # Fallback for tuple/list format
+                    table_exists = result[0] if len(result) > 0 else False
+                else:
+                    table_exists = False
+            else:
+                # SQLite returns Row object or None
+                table_exists = bool(result)
             
             if not table_exists:
                 print("📊 Initializing database tables...")
