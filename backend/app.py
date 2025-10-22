@@ -309,10 +309,68 @@ socketio = SocketIO(app, cors_allowed_origins=socketio_allowed_origins, logger=F
 # Instantiate crypto service
 crypto_service = QuantumCryptoService()
 
+# Track online users - maps username to socket session ID
+online_users = {}  # {username: sid}
+
+def emit_user_status(username, is_online):
+    """Notify friends when a user goes online/offline"""
+    print(f"👤 User status change: {username} -> {'online' if is_online else 'offline'}")
+    
+    # Get user's friends to notify them
+    db = get_db()
+    try:
+        cursor = db.cursor()
+        # Get all friends of this user
+        cursor.execute("""
+            SELECT friend_id FROM friendships WHERE user_id = (
+                SELECT id FROM users WHERE username = %s
+            )
+            UNION
+            SELECT user_id FROM friendships WHERE friend_id = (
+                SELECT id FROM users WHERE username = %s
+            )
+        """ if db.db_type == "postgresql" else """
+            SELECT friend_id FROM friendships WHERE user_id = (
+                SELECT id FROM users WHERE username = ?
+            )
+            UNION
+            SELECT user_id FROM friendships WHERE friend_id = (
+                SELECT id FROM users WHERE username = ?
+            )
+        """, (username, username))
+        
+        friend_ids = [row[0] if isinstance(row, tuple) else row['friend_id'] for row in cursor.fetchall()]
+        
+        if friend_ids:
+            # Get friend usernames
+            placeholders = ','.join(['%s'] * len(friend_ids)) if db.db_type == "postgresql" else ','.join(['?'] * len(friend_ids))
+            cursor.execute(f"SELECT username FROM users WHERE id IN ({placeholders})", friend_ids)
+            friends = [row[0] if isinstance(row, tuple) else row['username'] for row in cursor.fetchall()]
+            
+            # Emit status to each online friend
+            for friend_username in friends:
+                if friend_username in online_users:
+                    socketio.emit('user_status_changed', {
+                        'username': username,
+                        'is_online': is_online
+                    }, room=friend_username)
+                    print(f"   → Notified {friend_username}")
+    except Exception as e:
+        print(f"❌ Error emitting user status: {e}")
+        import traceback
+        traceback.print_exc()
+
 # Add explicit CORS headers to all responses as a fallback
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin')
+    
+    # Debug logging in development
+    if not is_production:
+        print(f"📤 After request for {request.method} {request.path}")
+        print(f"   Origin: {origin}")
+        print(f"   Status: {response.status_code}")
+    
     if origin:
         # Check if origin is allowed
         allowed = False
@@ -332,6 +390,12 @@ def after_request(response):
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
             response.headers['Access-Control-Max-Age'] = '3600'
+            
+            if not is_production:
+                print(f"   ✅ CORS headers added for allowed origin")
+        else:
+            print(f"   ❌ Origin '{origin}' not in trusted list")
+            print(f"   📋 Trusted origins: {[o for o in trusted_origins if isinstance(o, str)]}")
     
     return response
 
@@ -539,6 +603,17 @@ def get_users():
     return jsonify(users), 200
 
 
+@app.route('/user/status/<username>', methods=['GET'])
+@login_required
+def get_user_status(username):
+    """Check if a specific user is currently online"""
+    is_online = username in online_users
+    return jsonify({
+        'username': username,
+        'is_online': is_online
+    }), 200
+
+
 @socketio.on('connect')
 def handle_connect():
     """
@@ -559,7 +634,18 @@ def handle_connect():
         
         # Join room with the authenticated user's ID
         join_room(user_id)
+        
+        # Track user as online
+        online_users[user_id] = request.sid
+        
         print(f'✅ Client {user_id} connected and joined room.')
+        print(f'   Online users: {list(online_users.keys())}')
+        
+        # Notify friends that this user is now online
+        emit_user_status(user_id, is_online=True)
+        
+        # Send current online status of friends to this user
+        emit('online_users_list', {'users': list(online_users.keys())})
         
     except Exception as e:
         print(f'❌ Connection error: {str(e)}')
@@ -570,7 +656,23 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('Client disconnected')
+    """Handle user disconnection and update online status"""
+    try:
+        if 'username' in session:
+            user_id = session['username']
+            
+            # Remove from online users
+            if user_id in online_users:
+                del online_users[user_id]
+                print(f'👋 Client {user_id} disconnected')
+                print(f'   Online users: {list(online_users.keys())}')
+                
+                # Notify friends that this user is now offline
+                emit_user_status(user_id, is_online=False)
+        else:
+            print('Client disconnected (not authenticated)')
+    except Exception as e:
+        print(f'❌ Disconnect error: {str(e)}')
 
 
 @socketio.on('send_message')

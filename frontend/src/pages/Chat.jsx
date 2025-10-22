@@ -58,6 +58,32 @@ const ChatHeader = styled.div`
     justify-content: space-between;
 `;
 
+const UserInfo = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 12px;
+`;
+
+const OnlineIndicator = styled.div`
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: ${props => props.isOnline ? '#52c41a' : '#d9d9d9'};
+    border: 2px solid ${props => props.isOnline ? '#95de64' : '#f0f0f0'};
+    animation: ${props => props.isOnline ? 'pulse 2s ease-in-out infinite' : 'none'};
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+`;
+
+const OnlineStatus = styled.span`
+    font-size: 12px;
+    color: ${props => props.isOnline ? '#52c41a' : '#8c8c8c'};
+    font-weight: 500;
+`;
+
 const MessageList = styled.div`
     flex: 1;
     overflow-y: auto;
@@ -119,6 +145,7 @@ const Chat = () => {
     const [currentUser, setCurrentUser] = useState(null);
     const [session, setSession] = useState(null);
     const [searchResults, setSearchResults] = useState([]);
+    const [onlineUsers, setOnlineUsers] = useState(new Set()); // Track online users
     const messageListRef = useRef(null);
 
     const handleSearch = async (value) => {
@@ -231,11 +258,37 @@ const Chat = () => {
             message.info(`You have a new friend request from ${data.requester}`);
         };
 
+        const onlineUsersListHandler = (data) => {
+            // Receive initial list of online users
+            if (IS_DEV) {
+                console.log('📋 Online users list:', data.users);
+            }
+            setOnlineUsers(new Set(data.users));
+        };
+
+        const userStatusChangedHandler = (data) => {
+            // User went online or offline
+            if (IS_DEV) {
+                console.log(`👤 User ${data.username} is now ${data.is_online ? 'online' : 'offline'}`);
+            }
+            setOnlineUsers(prev => {
+                const updated = new Set(prev);
+                if (data.is_online) {
+                    updated.add(data.username);
+                } else {
+                    updated.delete(data.username);
+                }
+                return updated;
+            });
+        };
+
         // Register event handlers
         newSocket.on('connect', connectHandler);
         newSocket.on('connect_error', errorHandler);
         newSocket.on('disconnect', disconnectHandler);
         newSocket.on('new_friend_request', friendRequestHandler);
+        newSocket.on('online_users_list', onlineUsersListHandler);
+        newSocket.on('user_status_changed', userStatusChangedHandler);
 
         setSocket(newSocket);
 
@@ -245,6 +298,8 @@ const Chat = () => {
             newSocket.off('connect_error', errorHandler);
             newSocket.off('disconnect', disconnectHandler);
             newSocket.off('new_friend_request', friendRequestHandler);
+            newSocket.off('online_users_list', onlineUsersListHandler);
+            newSocket.off('user_status_changed', userStatusChangedHandler);
             newSocket.disconnect();
         };
     }, []);
@@ -505,7 +560,17 @@ const Chat = () => {
                 {selectedUser ? (
                     <>
                         <ChatHeader>
-                            <h2>{selectedUser.username}</h2>
+                            <UserInfo>
+                                <div>
+                                    <h2 style={{ margin: 0 }}>{selectedUser.username}</h2>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                        <OnlineIndicator isOnline={onlineUsers.has(selectedUser.username)} />
+                                        <OnlineStatus isOnline={onlineUsers.has(selectedUser.username)}>
+                                            {onlineUsers.has(selectedUser.username) ? 'Online' : 'Offline'}
+                                        </OnlineStatus>
+                                    </div>
+                                </div>
+                            </UserInfo>
                             {session && <span style={{ color: 'green' }}><LockOutlined /> Secure</span>}
                         </ChatHeader>
                         <MessageNotice>
