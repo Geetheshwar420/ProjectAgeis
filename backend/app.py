@@ -75,11 +75,67 @@ crypto_service = QuantumCryptoService()
 
 # Simple health check for Render/infra
 @app.route('/healthz', methods=['GET'])
-def healthz():
-    return jsonify({
-        'status': 'ok',
-        'time': datetime.now(timezone.utc).isoformat()
-    }), 200
+def health_check():
+    """Health check endpoint for Render and debugging"""
+    from datetime import datetime, timezone
+    
+    health_status = {
+        'status': 'healthy',
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'database': 'unknown',
+        'crypto': 'initialized' if crypto_service else 'not initialized',
+        'env': {
+            'flask_env': os.getenv('FLASK_ENV', 'not set'),
+            'has_database_url': bool(os.getenv('DATABASE_URL')),
+            'has_secret_key': bool(os.getenv('SECRET_KEY'))
+        }
+    }
+    
+    # Test database connection and table existence
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        try:
+            # Test basic connectivity
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            
+            # Check if users table exists
+            if db.db_type == "postgresql":
+                cursor.execute("""
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_name = 'users'
+                """)
+            else:
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='users'
+                """)
+            
+            users_table_exists = cursor.fetchone() is not None
+            
+            health_status['database'] = {
+                'connected': True,
+                'type': db.db_type,
+                'users_table_exists': users_table_exists
+            }
+            if not users_table_exists:
+                health_status['status'] = 'degraded'
+                health_status['warning'] = 'Database connected but tables not initialized. Run init_db_standalone.py'
+        finally:
+            cursor.close()
+    except Exception as e:
+        health_status['database'] = {
+            'connected': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }
+        health_status['status'] = 'unhealthy'
+        return jsonify(health_status), 503
+    
+    status_code = 200 if health_status['status'] == 'healthy' else 500
+    return jsonify(health_status), status_code
 
 # Simple session-based auth decorator
 def login_required(f):
