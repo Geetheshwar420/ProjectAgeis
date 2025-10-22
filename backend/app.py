@@ -30,7 +30,12 @@ else:
     print(f"Warning: .env file not found at {dotenv_path}")
 
 def init_app_database():
-    """Initialize database tables if they don't exist"""
+    """Initialize database tables if they don't exist and ensure required columns.
+
+    This function is safe to run multiple times. In addition to creating base
+    tables the first time, it will backfill newer columns used by the app:
+    formatted_timestamp, iso_timestamp, session_id, status, delivered_at, read_at.
+    """
     from db_adapter import DatabaseAdapter
     
     try:
@@ -221,6 +226,45 @@ def init_app_database():
                 print("✅ Database tables created successfully!")
             else:
                 print("✅ Database tables already exist")
+
+            # Ensure required message columns exist (schema backfill)
+            try:
+                def column_exists(table, column):
+                    if db.db_type == "postgresql":
+                        cursor.execute(
+                            """
+                            SELECT 1 FROM information_schema.columns
+                             WHERE table_schema = 'public' AND table_name = %s AND column_name = %s
+                            """,
+                            (table, column)
+                        )
+                        return cursor.fetchone() is not None
+                    else:
+                        cursor.execute(f"PRAGMA table_info({table})")
+                        rows = cursor.fetchall()
+                        # rows: cid, name, type, notnull, dflt_value, pk
+                        return any((r[1] if isinstance(r, tuple) else r['name']).lower() == column for r in rows)
+
+                def ensure_column(table, column, ddl):
+                    try:
+                        if not column_exists(table, column):
+                            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+                            if not is_production:
+                                print(f"   ➕ Added missing column {table}.{column}")
+                    except Exception as e:
+                        # SQLite older versions may not support certain ALTER variants; ignore non-fatal
+                        print(f"⚠️  Could not add column {table}.{column}: {e}")
+
+                # Backfill modern columns used by the app
+                ensure_column('messages', 'formatted_timestamp', 'TEXT')
+                ensure_column('messages', 'iso_timestamp', 'TEXT')
+                ensure_column('messages', 'session_id', 'TEXT')
+                ensure_column('messages', 'status', "TEXT DEFAULT 'sent'")
+                ensure_column('messages', 'delivered_at', 'TIMESTAMP NULL')
+                ensure_column('messages', 'read_at', 'TIMESTAMP NULL')
+                db.commit()
+            except Exception as schema_err:
+                print(f"⚠️  Schema backfill skipped: {schema_err}")
                 
     except Exception as e:
         print(f"❌ Error initializing database: {e}")
@@ -320,41 +364,56 @@ def emit_user_status(username, is_online):
     db = get_db()
     try:
         cursor = db.cursor()
-        # Get all friends of this user
-        cursor.execute("""
-            SELECT friend_id FROM friendships WHERE user_id = (
-                SELECT id FROM users WHERE username = %s
+        # Prefer accepted friend relationships from friend_requests
+        if db.db_type == "postgresql":
+            cursor.execute(
+                """
+                SELECT u.username AS friend_username
+                  FROM friend_requests fr
+                  JOIN users u ON (CASE WHEN fr.requester = (SELECT id FROM users WHERE username = %s)
+                                        THEN fr.recipient ELSE fr.requester END) = u.id
+                 WHERE fr.status = 'accepted'
+                   AND (fr.requester = (SELECT id FROM users WHERE username = %s)
+                    OR  fr.recipient = (SELECT id FROM users WHERE username = %s))
+                """,
+                (username, username, username)
             )
-            UNION
-            SELECT user_id FROM friendships WHERE friend_id = (
-                SELECT id FROM users WHERE username = %s
+        else:
+            cursor.execute(
+                """
+                SELECT CASE WHEN fr.requester = (SELECT id FROM users WHERE username = ?)
+                            THEN u2.username ELSE u1.username END AS friend_username
+                  FROM friend_requests fr
+                  JOIN users u1 ON fr.requester = u1.id
+                  JOIN users u2 ON fr.recipient = u2.id
+                 WHERE fr.status = 'accepted'
+                   AND (fr.requester = (SELECT id FROM users WHERE username = ?)
+                    OR  fr.recipient = (SELECT id FROM users WHERE username = ?))
+                """,
+                (username, username, username)
             )
-        """ if db.db_type == "postgresql" else """
-            SELECT friend_id FROM friendships WHERE user_id = (
-                SELECT id FROM users WHERE username = ?
-            )
-            UNION
-            SELECT user_id FROM friendships WHERE friend_id = (
-                SELECT id FROM users WHERE username = ?
-            )
-        """, (username, username))
-        
-        friend_ids = [row[0] if isinstance(row, tuple) else row['friend_id'] for row in cursor.fetchall()]
-        
-        if friend_ids:
-            # Get friend usernames
-            placeholders = ','.join(['%s'] * len(friend_ids)) if db.db_type == "postgresql" else ','.join(['?'] * len(friend_ids))
-            cursor.execute(f"SELECT username FROM users WHERE id IN ({placeholders})", friend_ids)
-            friends = [row[0] if isinstance(row, tuple) else row['username'] for row in cursor.fetchall()]
-            
-            # Emit status to each online friend
-            for friend_username in friends:
-                if friend_username in online_users:
-                    socketio.emit('user_status_changed', {
-                        'username': username,
-                        'is_online': is_online
-                    }, room=friend_username)
-                    print(f"   → Notified {friend_username}")
+
+        friends = [row['friend_username'] if isinstance(row, dict) else row[0] for row in cursor.fetchall()]
+
+        notified = False
+        for friend_username in friends:
+            if friend_username in online_users:
+                socketio.emit('user_status_changed', {
+                    'username': username,
+                    'is_online': is_online
+                }, room=friend_username)
+                notified = True
+                print(f"   → Notified {friend_username}")
+
+        # Fallback: if no friends detected, broadcast to all online users to ensure UI updates
+        if not notified:
+            for room_user in list(online_users.keys()):
+                if room_user == username:
+                    continue
+                socketio.emit('user_status_changed', {
+                    'username': username,
+                    'is_online': is_online
+                }, room=room_user)
     except Exception as e:
         print(f"❌ Error emitting user status: {e}")
         import traceback
@@ -571,10 +630,13 @@ def logout():
 @app.route('/me', methods=['GET'])
 @login_required
 def get_current_user():
-    print(f"[DEBUG /me] Session data: {dict(session)}")
-    print(f"[DEBUG /me] Session cookie received: {request.cookies.get('session')}")
-    print(f"[DEBUG /me] All cookies: {dict(request.cookies)}")
-    print(f"[DEBUG /me] Request host: {request.host}")
+    # Reduce sensitive logging; only log minimal info in development
+    if not is_production:
+        try:
+            print(f"[DEBUG /me] Session keys: {list(session.keys())}")
+            print(f"[DEBUG /me] Request host: {request.host}")
+        except Exception:
+            pass
     return jsonify({
         'username': session.get('username'),
         'email': session.get('email')
@@ -646,6 +708,65 @@ def handle_connect():
         
         # Send current online status of friends to this user
         emit('online_users_list', {'users': list(online_users.keys())})
+
+        # Deliver any stored (undelivered) messages to this user and then delete them
+        try:
+            db = get_db()
+            if db.db_type == 'postgresql':
+                rows = db.fetchall(
+                    """
+                    SELECT id, sender_id, recipient_id, encrypted_message, signature,
+                           nonce, tag, formatted_timestamp, iso_timestamp
+                      FROM messages
+                     WHERE recipient_id = %s AND (status = 'sent' OR status IS NULL)
+                  ORDER BY timestamp ASC
+                    """,
+                    (user_id,)
+                )
+            else:
+                rows = db.fetchall(
+                    """
+                    SELECT id, sender_id, recipient_id, encrypted_message, signature,
+                           nonce, tag, formatted_timestamp, iso_timestamp
+                      FROM messages
+                     WHERE recipient_id = ? AND (status = 'sent' OR status IS NULL)
+                  ORDER BY timestamp ASC
+                    """,
+                    (user_id,)
+                )
+
+            for row in rows:
+                payload = {
+                    '_id': str(row['id']),
+                    'sender_id': row['sender_id'],
+                    'recipient_id': row['recipient_id'],
+                    'encrypted_message': row['encrypted_message'],
+                    'signature': row['signature'],
+                    'nonce': row['nonce'],
+                    'tag': row['tag'],
+                    'formatted_timestamp': row.get('formatted_timestamp') or datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
+                    'timestamp': row.get('iso_timestamp') or datetime.now(timezone.utc).isoformat()
+                }
+                # Deliver to recipient
+                emit('new_message', payload, room=user_id)
+                # Notify sender that delivery occurred
+                socketio.emit('message_delivered', {
+                    'message_id': payload['_id'],
+                    'delivered_at': datetime.now(timezone.utc).isoformat()
+                }, room=payload['sender_id'])
+
+            if rows:
+                ids = [r['id'] for r in rows]
+                if db.db_type == 'postgresql':
+                    placeholders = ','.join(['%s'] * len(ids))
+                    db.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", ids, add_returning_id=False)
+                else:
+                    placeholders = ','.join(['?'] * len(ids))
+                    db.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", ids, add_returning_id=False)
+                db.commit()
+                print(f"🗑️  Deleted {len(ids)} delivered offline messages for {user_id}")
+        except Exception as deliver_err:
+            print(f"⚠️  Failed to deliver offline messages: {deliver_err}")
         
     except Exception as e:
         print(f'❌ Connection error: {str(e)}')
@@ -771,32 +892,61 @@ def handle_send_message(data):
             })
             return
 
-        # Create message with server-generated timestamp
-        # The Message class generates a single timestamp used for DB and client
-        print(f'💾 Creating message object...')
-        message = Message(sender_id, recipient_id, encrypted_message, signature, nonce, tag)
+        # Decide delivery path based on recipient online status
+        recipient_online = recipient_id in online_users
+        print(f"📶 Recipient online? {recipient_online}")
 
-        # Save to database with error handling
-        try:
-            print(f'💾 Saving message to database...')
-            message_id = message.save(db)
-            print(f'✅ Message saved successfully with ID: {message_id}')
-        except Exception as save_error:
-            logging.error(f'Failed to save message: {save_error}', exc_info=True)
-            print(f'❌ Failed to save message: {save_error}')
-            emit('message_error', {
-                'error': 'Failed to save message',
-                'message': 'Your message could not be saved. Please try again.'
-            })
-            return
+        # Generate server-side timestamp
+        now_dt = datetime.now(timezone.utc)
+        formatted_timestamp = now_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+        iso_timestamp = now_dt.isoformat()
 
-        # Use the same timestamp from the Message object for consistency
-        # This ensures DB and client receive identical timestamps
-        formatted_timestamp = message.formatted_timestamp  # Human-readable format
-        iso_timestamp = message.iso_timestamp  # ISO 8601 for ordering/auditing
+        message_id = None
+        if not recipient_online:
+            # Store-and-forward for offline recipient
+            try:
+                print('💾 Storing offline message for later delivery...')
+                if db.db_type == 'postgresql':
+                    insert_sql = (
+                        """
+                        INSERT INTO messages (sender_id, recipient_id, encrypted_message, signature,
+                                              nonce, tag, timestamp, formatted_timestamp, iso_timestamp, status)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'sent')
+                        RETURNING id
+                        """
+                    )
+                    cur = db.execute(insert_sql, (
+                        sender_id, recipient_id, encrypted_message, signature, nonce, tag,
+                        now_dt, formatted_timestamp, iso_timestamp
+                    ))
+                    message_id = db.get_last_insert_id(cur)
+                else:
+                    insert_sql = (
+                        """
+                        INSERT INTO messages (sender_id, recipient_id, encrypted_message, signature,
+                                              nonce, tag, timestamp, formatted_timestamp, iso_timestamp, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')
+                        """
+                    )
+                    cur = db.execute(insert_sql, (
+                        sender_id, recipient_id, encrypted_message, signature, nonce, tag,
+                        now_dt, formatted_timestamp, iso_timestamp
+                    ), add_returning_id=False)
+                    message_id = db.get_last_insert_id(cur)
+                db.commit()
+                print(f"✅ Stored offline message id={message_id}")
+            except Exception as save_err:
+                db.rollback()
+                logging.error(f'Failed to store offline message: {save_err}', exc_info=True)
+                emit('message_error', {
+                    'error': 'Failed to save message',
+                    'message': 'Your message could not be saved for offline delivery.'
+                })
+                return
 
+        # Build common message payload
         message_data = {
-            '_id': str(message_id),
+            '_id': str(message_id) if message_id is not None else None,
             'sender_id': sender_id,
             'recipient_id': recipient_id,
             'client_msg_id': client_msg_id,
@@ -805,20 +955,30 @@ def handle_send_message(data):
             'nonce': nonce,
             'tag': tag,
             'formatted_timestamp': formatted_timestamp,
-            'timestamp': iso_timestamp  # ISO 8601 with timezone for ordering/auditing
+            'timestamp': iso_timestamp
         }
 
-        print(f'📤 Emitting message to rooms...')
-        print(f'   Recipient room: {recipient_id}')
-        print(f'   Sender room: {sender_id}')
+        # Emit to appropriate rooms
+        if recipient_online:
+            emit('new_message', message_data, room=recipient_id)
+            emit('new_message', message_data, room=sender_id)
+            # Inform sender the message reached the recipient
+            emit('message_delivered', {
+                'client_msg_id': client_msg_id,
+                'message_id': message_data['_id'],
+                'delivered_at': iso_timestamp
+            }, room=sender_id)
+        else:
+            # Only echo to sender when recipient is offline
+            emit('new_message', message_data, room=sender_id)
 
-        # Emit to both participants
-        emit('new_message', message_data, room=recipient_id)
-        emit('new_message', message_data, room=sender_id)
-
-        # Send success confirmation to sender
-        emit('message_sent', {'message_id': str(message_id), 'timestamp': formatted_timestamp})
-        print(f'✅ Message successfully broadcasted')
+        # Acknowledge send handling to sender
+        emit('message_sent', {
+            'message_id': str(message_id) if message_id is not None else None,
+            'client_msg_id': client_msg_id,
+            'timestamp': formatted_timestamp
+        }, room=sender_id)
+        print('✅ Message processing complete')
 
     except Exception as e:
         # Catch-all for any unexpected errors
@@ -830,6 +990,45 @@ def handle_send_message(data):
             'error': 'Internal server error',
             'message': 'An unexpected error occurred. Please try again or contact support.'
         })
+
+
+@socketio.on('message_read')
+def handle_message_read(data):
+    """Handle read receipt from recipient and forward to sender."""
+    try:
+        msg_id = data.get('message_id')
+        client_msg_id = data.get('client_msg_id')
+        sender_id = data.get('sender_id')
+        recipient_id = data.get('recipient_id')
+
+        if not sender_id or not recipient_id:
+            return
+
+        # Best-effort DB update (if message exists)
+        try:
+            db = get_db()
+            if msg_id:
+                if db.db_type == 'postgresql':
+                    db.execute("UPDATE messages SET status = 'read', read_at = NOW() WHERE id = %s", (int(msg_id),))
+                else:
+                    db.execute("UPDATE messages SET status = 'read', read_at = CURRENT_TIMESTAMP WHERE id = ?", (int(msg_id),), add_returning_id=False)
+                db.commit()
+        except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            print(f"⚠️  Failed to update read status: {e}")
+
+        # Forward to sender room
+        socketio.emit('message_read', {
+            'message_id': str(msg_id) if msg_id else None,
+            'client_msg_id': client_msg_id,
+            'reader_id': recipient_id,
+            'read_at': datetime.now(timezone.utc).isoformat()
+        }, room=sender_id)
+    except Exception as e:
+        print(f"❌ Error in message_read handler: {e}")
 
 
 @app.route('/initiate_qke', methods=['POST'])

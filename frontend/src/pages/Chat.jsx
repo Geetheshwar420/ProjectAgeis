@@ -8,6 +8,7 @@ import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import FriendRequests from '../components/FriendRequests';
+import MessageStatus from '../components/MessageStatus';
 
 const { Sider, Content, Footer } = Layout;
 
@@ -315,16 +316,22 @@ const Chat = () => {
 
                     let matched = false;
                     setMessages((prev) => {
-                        const idx = prev.findIndex((m) =>
-                            m.sender_id === currentUser?.username &&
-                            typeof m._id === 'string' && m._id.startsWith('pending-') &&
-                            // Correlate by unique crypto fields (signature preferred)
-                            (
-                                (m.signature && m.signature === data.signature) ||
-                                ((m.nonce === data.nonce) && (m.tag === data.tag)) ||
-                                (m.encrypted_message === data.encrypted_message)
-                            )
-                        );
+                        // Prefer direct client_msg_id correlation; fallback to crypto fingerprint
+                        let idx = -1;
+                        if (data.client_msg_id) {
+                            idx = prev.findIndex((m) => m.client_msg_id && m.client_msg_id === data.client_msg_id);
+                        }
+                        if (idx === -1) {
+                            idx = prev.findIndex((m) =>
+                                m.sender_id === currentUser?.username &&
+                                typeof m._id === 'string' && m._id.startsWith('pending-') &&
+                                (
+                                    (m.signature && m.signature === data.signature) ||
+                                    ((m.nonce === data.nonce) && (m.tag === data.tag)) ||
+                                    (m.encrypted_message === data.encrypted_message)
+                                )
+                            );
+                        }
 
                         if (idx !== -1) {
                             matched = true;
@@ -333,12 +340,14 @@ const Chat = () => {
                                 ...optimistic,
                                 // Preserve plaintext already shown; update server-provided ids/metadata
                                 _id: data._id,
+                                client_msg_id: data.client_msg_id || optimistic.client_msg_id,
                                 formatted_timestamp: data.formatted_timestamp || optimistic.formatted_timestamp,
                                 timestamp: data.timestamp || optimistic.timestamp,
                                 // Ensure we keep authoritative crypto metadata from server
                                 nonce: data.nonce ?? optimistic.nonce,
                                 tag: data.tag ?? optimistic.tag,
                                 signature: data.signature ?? optimistic.signature,
+                                // Keep status until later events update it
                             };
                             const copy = prev.slice();
                             copy[idx] = updated;
@@ -390,6 +399,18 @@ const Chat = () => {
                             const decryptedMessage = decryptResponse.data.plaintext;
 
                             setMessages((prevMessages) => [...prevMessages, { ...data, encrypted_message: decryptedMessage }]);
+
+                            // Immediately send read receipt for visible incoming messages
+                            try {
+                                socket.emit('message_read', {
+                                    message_id: data._id,
+                                    client_msg_id: data.client_msg_id,
+                                    sender_id: data.sender_id,
+                                    recipient_id: currentUser?.username
+                                });
+                            } catch (e) {
+                                if (IS_DEV) console.warn('Failed to emit message_read:', e);
+                            }
                         } else {
                             message.error('Signature verification failed');
                         }
@@ -404,7 +425,38 @@ const Chat = () => {
                 if (IS_DEV) {
                     console.log('✅ Message sent successfully:', data);
                 }
-                message.success('Message delivered');
+                // Upgrade status to 'sent' for the matching optimistic message
+                if (data?.client_msg_id) {
+                    setMessages((prev) => prev.map(m => (
+                        m.client_msg_id === data.client_msg_id ? { ...m, status: 'sent', formatted_timestamp: data.timestamp || m.formatted_timestamp } : m
+                    )));
+                }
+            });
+
+            // Delivery confirmation (to recipient) -> set to delivered
+            socket.on('message_delivered', (data) => {
+                if (data?.client_msg_id) {
+                    setMessages((prev) => prev.map(m => (
+                        m.client_msg_id === data.client_msg_id ? { ...m, status: 'delivered' } : m
+                    )));
+                } else if (data?.message_id) {
+                    setMessages((prev) => prev.map(m => (
+                        m._id === data.message_id ? { ...m, status: 'delivered' } : m
+                    )));
+                }
+            });
+
+            // Read receipt from recipient -> set to read
+            socket.on('message_read', (data) => {
+                if (data?.client_msg_id) {
+                    setMessages((prev) => prev.map(m => (
+                        m.client_msg_id === data.client_msg_id ? { ...m, status: 'read' } : m
+                    )));
+                } else if (data?.message_id) {
+                    setMessages((prev) => prev.map(m => (
+                        m._id === data.message_id ? { ...m, status: 'read' } : m
+                    )));
+                }
             });
 
             // Listen for message errors from server
@@ -417,6 +469,8 @@ const Chat = () => {
                 socket.off('new_message');
                 socket.off('message_sent');
                 socket.off('message_error');
+                socket.off('message_delivered');
+                socket.off('message_read');
             };
         }
     }, [socket, selectedUser, session, currentUser]);
@@ -442,6 +496,18 @@ const Chat = () => {
                 message.success('Secure session established');
                 // As per product decision, do not fetch or show history; start fresh each session
                 setMessages([]);
+
+                // Refresh online status for the selected user as a fallback
+                try {
+                    const statusResp = await api.get(`/user/status/${user.username}`);
+                    setOnlineUsers(prev => {
+                        const s = new Set(prev);
+                        if (statusResp.data?.is_online) s.add(user.username); else s.delete(user.username);
+                        return s;
+                    });
+                } catch (e) {
+                    if (IS_DEV) console.warn('Failed to fetch user status:', e);
+                }
             } else {
                 message.error('Failed to establish secure session');
             }
@@ -481,6 +547,24 @@ const Chat = () => {
         const messageToSend = newMessage;
         setNewMessage(''); // Clear input immediately for better UX
 
+        // Generate a client-side id for reconciliation and status tracking
+        const clientMsgId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `cmsg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+        // Optimistically add placeholder with status 'encrypting'
+        const optimisticTimestamp = new Date().toLocaleString();
+        setMessages((prevMessages) => [
+            ...prevMessages,
+            {
+                _id: 'pending-' + clientMsgId,
+                client_msg_id: clientMsgId,
+                sender_id: currentUser.username,
+                recipient_id: selectedUser.username,
+                encrypted_message: messageToSend, // show plaintext for UX
+                formatted_timestamp: optimisticTimestamp,
+                status: 'encrypting'
+            }
+        ]);
+
         try {
             if (IS_DEV) console.log('🧩 Preparing message (encrypt+sign+Kyber package)...');
 
@@ -498,6 +582,7 @@ const Chat = () => {
             const messageData = {
                 sender_id: currentUser.username,
                 recipient_id: selectedUser.username,
+                client_msg_id: clientMsgId,
                 // Kyber envelope fields
                 kyber_ct: prepared.data.kyber_ct,
                 outer_ciphertext: prepared.data.outer_ciphertext,
@@ -511,19 +596,7 @@ const Chat = () => {
             }
             socket.emit('send_message', messageData);
             if (IS_DEV) console.log('✅ Message emitted to server');
-
-            // Optimistically add to local messages (will be confirmed by server)
-            // Optimistically add plaintext to UI (server will reconcile id on echo)
-            setMessages((prevMessages) => [
-                ...prevMessages,
-                {
-                    _id: 'pending-' + Date.now(),
-                    sender_id: currentUser.username,
-                    recipient_id: selectedUser.username,
-                    encrypted_message: messageToSend,
-                    formatted_timestamp: new Date().toLocaleString()
-                }
-            ]);
+            // Mark as sent once server acknowledges send (handled by message_sent event)
 
         } catch (error) {
             console.error('❌ Failed to send message:', error);
@@ -592,7 +665,11 @@ const Chat = () => {
                                                 {msg.encrypted_message}
                                             </MessageBubble>
                                             <MessageTimestamp isCurrentUser={msg.sender_id === currentUser.username}>
-                                                {msg.formatted_timestamp}
+                                                {msg.sender_id === currentUser.username ? (
+                                                    <MessageStatus status={msg.status || 'sent'} timestamp={msg.formatted_timestamp} />
+                                                ) : (
+                                                    <span>{msg.formatted_timestamp}</span>
+                                                )}
                                             </MessageTimestamp>
                                         </MessageItem>
                                     </motion.div>

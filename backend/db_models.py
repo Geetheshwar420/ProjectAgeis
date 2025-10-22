@@ -15,37 +15,49 @@ class User:
 
     def save(self, db):
         """
-        Save user to SQLite database.
-        Returns the user ID (integer) on success.
-        
-        ⚠️ SECURITY: Only public keys are stored in database.
-        Secret keys remain in-memory only in QuantumCryptoService.
+        Save user to database. Returns the user ID on success.
+        Works with both SQLite and PostgreSQL.
         """
-        cursor = None
         try:
-            cursor = db.cursor()
-            cursor.execute('''
-                INSERT INTO users (username, password_hash, email, created_at,
-                                 kyber_public_key, dilithium_public_key)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                self.username,
-                self.password_hash,
-                self.email,
-                self.created_at,
-                self.keys.get('kyber_public_key'),
-                self.keys.get('dilithium_public_key')
-            ))
+            if db.db_type == 'postgresql':
+                query = (
+                    """
+                    INSERT INTO users (username, password_hash, email, created_at,
+                                       kyber_public_key, dilithium_public_key)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                )
+                cursor = db.execute(query, (
+                    self.username,
+                    self.password_hash,
+                    self.email,
+                    self.created_at,
+                    self.keys.get('kyber_public_key'),
+                    self.keys.get('dilithium_public_key')
+                ))
+                user_id = db.get_last_insert_id(cursor)
+            else:
+                query = (
+                    """
+                    INSERT INTO users (username, password_hash, email, created_at,
+                                       kyber_public_key, dilithium_public_key)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """
+                )
+                cursor = db.execute(query, (
+                    self.username,
+                    self.password_hash,
+                    self.email,
+                    self.created_at,
+                    self.keys.get('kyber_public_key'),
+                    self.keys.get('dilithium_public_key')
+                ), add_returning_id=False)
+                user_id = db.get_last_insert_id(cursor)
             db.commit()
-            return cursor.lastrowid
-        except sqlite3.DatabaseError as e:
-            # Roll back on any database-related error (covers IntegrityError, OperationalError, etc.)
+            return user_id
+        except Exception as e:
             db.rollback()
             raise ValueError(f'User creation failed: {e}') from e
-        finally:
-            # Always close the cursor to avoid leaks
-            if cursor:
-                cursor.close()
 
     @staticmethod
     def find_by_username(db, username):
@@ -56,19 +68,39 @@ class User:
         ⚠️ SECURITY: Only public keys are retrieved from database.
         Secret keys are never persisted.
         """
-        cursor = None
         try:
-            cursor = db.cursor()
-            cursor.execute('''
-                SELECT id, username, password_hash, email, created_at,
-                       kyber_public_key, dilithium_public_key
-                FROM users WHERE username = ?
-            ''', (username,))
+            if db.db_type == 'postgresql':
+                query = (
+                    """
+                    SELECT id, username, password_hash, email, created_at,
+                           kyber_public_key, dilithium_public_key
+                      FROM users WHERE username = %s
+                    """
+                )
+                cursor = db.execute(query, (username,), add_returning_id=False)
+            else:
+                query = (
+                    """
+                    SELECT id, username, password_hash, email, created_at,
+                           kyber_public_key, dilithium_public_key
+                      FROM users WHERE username = ?
+                    """
+                )
+                cursor = db.execute(query, (username,), add_returning_id=False)
+
             row = cursor.fetchone()
-            
             if row:
-                # Convert Row to dict and reconstruct keys structure
-                user_dict = dict(row)
+                # Normalize to dict
+                if isinstance(row, sqlite3.Row):
+                    user_dict = dict(row)
+                else:
+                    try:
+                        user_dict = dict(row)
+                    except Exception:
+                        # Fallback for tuple-based rows
+                        cols = ['id','username','password_hash','email','created_at','kyber_public_key','dilithium_public_key']
+                        user_dict = {k: v for k, v in zip(cols, row)}
+
                 user_dict['keys'] = {
                     'kyber_public_key': user_dict.pop('kyber_public_key'),
                     'dilithium_public_key': user_dict.pop('dilithium_public_key')
@@ -76,8 +108,10 @@ class User:
                 return user_dict
             return None
         finally:
-            if cursor:
+            try:
                 cursor.close()
+            except Exception:
+                pass
 
     @staticmethod
     def find_by_email(db, email):
@@ -88,19 +122,37 @@ class User:
         ⚠️ SECURITY: Only public keys are retrieved from database.
         Secret keys are never persisted.
         """
-        cursor = None
         try:
-            cursor = db.cursor()
-            cursor.execute('''
-                SELECT id, username, password_hash, email, created_at,
-                       kyber_public_key, dilithium_public_key
-                FROM users WHERE email = ?
-            ''', (email,))
+            if db.db_type == 'postgresql':
+                query = (
+                    """
+                    SELECT id, username, password_hash, email, created_at,
+                           kyber_public_key, dilithium_public_key
+                      FROM users WHERE email = %s
+                    """
+                )
+                cursor = db.execute(query, (email,), add_returning_id=False)
+            else:
+                query = (
+                    """
+                    SELECT id, username, password_hash, email, created_at,
+                           kyber_public_key, dilithium_public_key
+                      FROM users WHERE email = ?
+                    """
+                )
+                cursor = db.execute(query, (email,), add_returning_id=False)
+
             row = cursor.fetchone()
-            
             if row:
-                # Convert Row to dict and reconstruct keys structure
-                user_dict = dict(row)
+                if isinstance(row, sqlite3.Row):
+                    user_dict = dict(row)
+                else:
+                    try:
+                        user_dict = dict(row)
+                    except Exception:
+                        cols = ['id','username','password_hash','email','created_at','kyber_public_key','dilithium_public_key']
+                        user_dict = {k: v for k, v in zip(cols, row)}
+
                 user_dict['keys'] = {
                     'kyber_public_key': user_dict.pop('kyber_public_key'),
                     'dilithium_public_key': user_dict.pop('dilithium_public_key')
@@ -108,8 +160,10 @@ class User:
                 return user_dict
             return None
         finally:
-            if cursor:
+            try:
                 cursor.close()
+            except Exception:
+                pass
 
     @staticmethod
     def check_password(user, password):
@@ -139,41 +193,52 @@ class Message:
 
     def save(self, db):
         """
-        Save message to SQLite database.
-        Returns the message ID (integer) on success.
-        
-        Implements proper transaction management:
-        - Wraps INSERT in try/except for error handling
-        - Commits on success, rolls back on failure
-        - Ensures cursor cleanup in finally block
+        Save message to database; returns message ID. Works on SQLite and PostgreSQL.
         """
-        cursor = None
         try:
-            cursor = db.cursor()
-            cursor.execute('''
-                INSERT INTO messages (sender_id, recipient_id, encrypted_message, signature,
-                                    nonce, tag, timestamp, formatted_timestamp, iso_timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                self.sender_id,
-                self.recipient_id,
-                self.encrypted_message,
-                self.signature,
-                self.nonce,
-                self.tag,
-                self.timestamp,
-                self.formatted_timestamp,
-                self.iso_timestamp
-            ))
+            if db.db_type == 'postgresql':
+                query = (
+                    """
+                    INSERT INTO messages (sender_id, recipient_id, encrypted_message, signature,
+                                          nonce, tag, timestamp, formatted_timestamp, iso_timestamp)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                )
+                cursor = db.execute(query, (
+                    self.sender_id,
+                    self.recipient_id,
+                    self.encrypted_message,
+                    self.signature,
+                    self.nonce,
+                    self.tag,
+                    self.timestamp,
+                    self.formatted_timestamp,
+                    self.iso_timestamp
+                ))
+                message_id = db.get_last_insert_id(cursor)
+            else:
+                query = (
+                    """
+                    INSERT INTO messages (sender_id, recipient_id, encrypted_message, signature,
+                                          nonce, tag, timestamp, formatted_timestamp, iso_timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """
+                )
+                cursor = db.execute(query, (
+                    self.sender_id,
+                    self.recipient_id,
+                    self.encrypted_message,
+                    self.signature,
+                    self.nonce,
+                    self.tag,
+                    self.timestamp,
+                    self.formatted_timestamp,
+                    self.iso_timestamp
+                ), add_returning_id=False)
+                message_id = db.get_last_insert_id(cursor)
             db.commit()
-            message_id = cursor.lastrowid
             return message_id
         except Exception as e:
-            # Rollback transaction on any error to maintain database consistency
             db.rollback()
             print(f"❌ Error saving message: {e}")
             raise ValueError(f'Message save failed: {e}')
-        finally:
-            # Always close cursor to prevent resource leaks
-            if cursor:
-                cursor.close()
