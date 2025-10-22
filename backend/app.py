@@ -906,4 +906,6 @@ if __name__ == '__main__':
     if flask_env != 'production' and app_debug_env in ('true', '1', 'yes'):
         debug_mode = True
     
-    socketio.run(app, host='0.0.0.0', port=5000, debug=debug_mode)
+    # Use PORT provided by hosting (e.g., Render) or default to 5000 locally
+    port = int(os.getenv('PORT', '5000'))
+    socketio.run(app, host='0.0.0.0', port=port, debug=debug_mode)
