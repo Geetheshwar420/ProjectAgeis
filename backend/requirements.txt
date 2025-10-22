@@ -21,3 +21,6 @@ Werkzeug
 # Database drivers and ORM
 psycopg2-binary
 SQLAlchemy
+
+#other packages 
+numpy
