@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, message, Typography, Popconfirm, Modal } from 'antd';
-import { UserOutlined, MailOutlined } from '@ant-design/icons';
+import { UserOutlined, MailOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import FriendRequests from '../components/FriendRequests';
@@ -27,6 +27,13 @@ const ProfileForm = styled.div`
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   width: 500px;
   text-align: center;
+  position: relative;
+`;
+
+const BackButton = styled(Button)`
+  position: absolute;
+  top: 20px;
+  left: 20px;
 `;
 
 const FriendRequestsWrapper = styled.div`
@@ -75,18 +82,27 @@ const Profile = () => {
         setLoading(false);
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        navigate('/login');
+    const handleLogout = async () => {
+        try {
+            // Call backend to clear session
+            await api.post('/logout');
+            message.success('Logged out successfully');
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            // Clear any local storage and redirect
+            localStorage.removeItem('user');
+            navigate('/login');
+        }
     };
 
     const handleDelete = async () => {
         try {
             await api.delete(`/user/${user.username}`);
             message.success('Account deleted successfully');
+            // Call logout to clear session
+            await api.post('/logout');
             localStorage.removeItem('user');
-            localStorage.removeItem('access_token');
             navigate('/login');
         } catch (error) {
             message.error('Failed to delete account');
@@ -107,6 +123,10 @@ const Profile = () => {
         }
     };
 
+    const handleBack = () => {
+        navigate('/chat');
+    };
+
     return (
         <ProfileContainer>
             <motion.div
@@ -115,6 +135,14 @@ const Profile = () => {
                 transition={{ duration: 0.5 }}
             >
                 <ProfileForm>
+                    <BackButton 
+                        type="text" 
+                        icon={<ArrowLeftOutlined />} 
+                        onClick={handleBack}
+                        size="large"
+                    >
+                        Back to Chat
+                    </BackButton>
                     <Title level={2} style={{ marginBottom: '24px' }}>User Profile</Title>
                     {user && (
                         <Form

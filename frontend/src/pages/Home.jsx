@@ -166,8 +166,9 @@ const DefaultButtonLink = styled(StyledButtonLink)`
   }
 `;
 
-const MotionButtonLink = motion(PrimaryButtonLink);
-const MotionDefaultButtonLink = motion(DefaultButtonLink);
+// framer-motion 12 deprecates motion(Component) in favor of motion.create(Component)
+const MotionButtonLink = motion.create(PrimaryButtonLink);
+const MotionDefaultButtonLink = motion.create(DefaultButtonLink);
 
 const Home = () => {
   const prefersReducedMotion = useReducedMotion();

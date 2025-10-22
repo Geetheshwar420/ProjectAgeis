@@ -28,24 +28,45 @@ class BB84Protocol:
     This is a simulation of the BB84 protocol which would normally
     require quantum hardware. For demonstration purposes, we simulate
     the quantum channel and measurements.
+    
+    Now supports deterministic key generation based on a seed (user password)
+    to ensure both parties in a conversation can derive the same session key.
     """
     
-    def __init__(self, key_length: int = 256, error_rate: float = 0.05):
+    def __init__(self, key_length: int = 256, error_rate: float = 0.05, seed: Optional[str] = None):
         self.key_length = key_length
         self.error_rate = error_rate
+        self.seed = seed
         self.alice_bits: List[int] = []
         self.alice_bases: List[PolarizationBasis] = []
         self.bob_bases: List[PolarizationBasis] = []
         self.bob_measurements: List[int] = []
         self.shared_key: Optional[bytes] = None
         
+        # Set up deterministic RNG if seed provided
+        if seed:
+            # Hash the seed to get a consistent integer seed
+            seed_hash = hashlib.sha256(seed.encode()).digest()
+            seed_int = int.from_bytes(seed_hash[:8], 'big')
+            self._rng = random.Random(seed_int)
+            np.random.seed(seed_int % (2**32))  # NumPy seed must be 32-bit
+        else:
+            self._rng = random.Random()
+            
+    def _get_random_bit(self) -> int:
+        """Get a random bit, deterministic if seed is set"""
+        if self.seed:
+            return self._rng.randint(0, 1)
+        else:
+            return secrets.randbits(1)
+        
     def generate_random_bits(self, length: int) -> List[int]:
-        """Generate cryptographically secure random bits"""
-        return [secrets.randbits(1) for _ in range(length)]
+        """Generate random bits (deterministic if seed is set)"""
+        return [self._get_random_bit() for _ in range(length)]
     
     def generate_random_bases(self, length: int) -> List[PolarizationBasis]:
-        """Generate random polarization bases"""
-        return [PolarizationBasis(secrets.randbits(1)) for _ in range(length)]
+        """Generate random polarization bases (deterministic if seed is set)"""
+        return [PolarizationBasis(self._get_random_bit()) for _ in range(length)]
     
     def encode_photon(self, bit: int, basis: PolarizationBasis) -> PhotonPolarization:
         if basis == PolarizationBasis.RECTILINEAR:
@@ -63,11 +84,12 @@ class BB84Protocol:
               basis == PolarizationBasis.DIAGONAL):
             correct_bit = 0 if photon == PhotonPolarization.DIAGONAL_45 else 1
         else:
-            # Wrong basis - result is random
-            correct_bit = secrets.randbits(1)
+            # Wrong basis - result is random (deterministic if seed is set)
+            correct_bit = self._get_random_bit()
         
-        # Apply channel noise
-        if random.random() < self.error_rate:
+        # Apply channel noise (deterministic if seed is set)
+        noise_check = self._rng.random() if self.seed else random.random()
+        if noise_check < self.error_rate:
             return 1 - correct_bit
         else:
             return correct_bit
@@ -112,8 +134,11 @@ class BB84Protocol:
         if len(alice_bits) < sample_size:
             sample_size = len(alice_bits)
             
-        # Randomly sample bits for error estimation
-        indices = random.sample(range(len(alice_bits)), sample_size)
+        # Randomly sample bits for error estimation (deterministic if seed is set)
+        if self.seed:
+            indices = self._rng.sample(range(len(alice_bits)), sample_size)
+        else:
+            indices = random.sample(range(len(alice_bits)), sample_size)
         
         errors = 0
         for i in indices:

@@ -1,29 +1,22 @@
-Flask
-Flask-Cors
-pymongo
-cryptography
-bcrypt
-PyJWT
-dnspython
-gevent
-greenlet
-Flask-SocketIO
-eventlet
-python-dotenv
-Werkzeug
-itsdangerous
-Jinja2
-click
-colorama
-Flask-Login
-gunicorn
-email_validator
-Flask-WTF
-wtforms
-Flask-Bcrypt
-Flask-PyMongo
-Flask-JWT-Extended
-passlib
-six
-wheel
-numpy
+# Core Flask framework and extensions
+Flask==2.3.3
+Flask-Cors==4.0.0
+Flask-SocketIO==5.3.6
+
+# Cryptography and security
+cryptography==45.0.6
+bcrypt==4.0.1
+passlib==1.7.4
+itsdangerous==2.2.0
+
+# WSGI server for production
+eventlet==0.36.1
+
+# Utilities
+python-dotenv==1.0.0
+email-validator==2.3.0
+Werkzeug==2.3.7
+
+# Database drivers and ORM
+psycopg2-binary==2.9.10
+SQLAlchemy==2.0.43

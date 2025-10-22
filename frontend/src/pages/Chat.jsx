@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Menu, Input, Button, message, Avatar, List } from 'antd';
-import { SendOutlined, LockOutlined } from '@ant-design/icons';
+import { SendOutlined, LockOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { Modal } from 'antd';
-import api from '../utils/api';
+import api, { getApiBaseUrl } from '../utils/api';
 import io from 'socket.io-client';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
@@ -83,6 +83,23 @@ const MessageTimestamp = styled.div`
     margin: 0 10px;
 `;
 
+const MessageNotice = styled.div`
+    background: #fff7e6;
+    border: 1px solid #ffd591;
+    padding: 12px 16px;
+    margin: 16px 24px 0;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    color: #d48806;
+    
+    svg {
+        margin-right: 8px;
+        flex-shrink: 0;
+    }
+`;
+
 const ChatFooter = styled(Footer)`
     background: #fff;
     padding: 16px 24px;
@@ -90,6 +107,9 @@ const ChatFooter = styled(Footer)`
 `;
 
 const Chat = () => {
+    // Development-only logging flag
+    const isDev = process.env.NODE_ENV === 'development';
+    
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -155,34 +175,75 @@ const Chat = () => {
     }, [currentUser]);
 
     useEffect(() => {
-        const token = localStorage.getItem('access_token');
         
-        // Dynamically determine the socket URL based on current hostname
-        // Uses page's protocol to prevent mixed-content blocking
-        const getSocketUrl = () => {
-            if (process.env.REACT_APP_API_URL) {
-                return process.env.REACT_APP_API_URL;
-            }
-            
-            // Use the page's current protocol to prevent mixed-content blocking
-            const protocol = window.location.protocol; // 'http:' or 'https:'
-            const hostname = window.location.hostname || 'localhost';
-            const port = process.env.REACT_APP_API_PORT || '5000';
-            
-            // Construct URL avoiding duplicate slashes
-            return `${protocol}//${hostname}:${port}`;
-        };
-        
-        const newSocket = io(getSocketUrl(), {
-            query: { token }
+        // Use the same base URL as Axios for consistency
+        const socketUrl = getApiBaseUrl();
+
+        const newSocket = io(socketUrl, {
+            withCredentials: true,  // Enables session cookies
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
         });
+
+        // Track if we've shown the initial connection toast
+        let hasShownInitialConnect = false;
+
+        // Define event handlers with stable references for cleanup
+        const connectHandler = () => {
+            if (!hasShownInitialConnect) {
+                // Only show toast on first connection
+                if (isDev) {
+                    console.log('✅ Socket.IO connected successfully (initial)');
+                }
+                message.success('Connected to server');
+                hasShownInitialConnect = true;
+            } else {
+                // Subsequent reconnections - log only, no toast
+                if (isDev) {
+                    console.debug('🔄 Socket.IO reconnected');
+                }
+            }
+        };
+
+        const errorHandler = (error) => {
+            console.error('❌ Socket.IO connection error:', error);
+            message.error('Failed to connect to server. Please check your connection.');
+        };
+
+        const disconnectHandler = (reason) => {
+            if (isDev) {
+                console.log('Socket.IO disconnected:', reason);
+            }
+            if (reason === 'io server disconnect' && newSocket.connected === false) {
+                // Server disconnected the socket, try to reconnect manually
+                message.warning('Disconnected from server. Reconnecting...');
+                // Only reconnect if socket instance is still valid
+                if (newSocket && !newSocket.connected) {
+                    newSocket.connect();
+                }
+            }
+        };
+
+        const friendRequestHandler = (data) => {
+            message.info(`You have a new friend request from ${data.requester}`);
+        };
+
+        // Register event handlers
+        newSocket.on('connect', connectHandler);
+        newSocket.on('connect_error', errorHandler);
+        newSocket.on('disconnect', disconnectHandler);
+        newSocket.on('new_friend_request', friendRequestHandler);
+
         setSocket(newSocket);
 
-        newSocket.on('new_friend_request', (data) => {
-            message.info(`You have a new friend request from ${data.requester}`);
-        });
-
         return () => {
+            // Remove all event listeners to prevent memory leaks
+            newSocket.off('connect', connectHandler);
+            newSocket.off('connect_error', errorHandler);
+            newSocket.off('disconnect', disconnectHandler);
+            newSocket.off('new_friend_request', friendRequestHandler);
             newSocket.disconnect();
         };
     }, []);
@@ -190,6 +251,68 @@ const Chat = () => {
     useEffect(() => {
         if (socket) {
             socket.on('new_message', async (data) => {
+                // If this is a message echo for the current user, try to reconcile with optimistic entry
+                if (data.sender_id === currentUser?.username) {
+                    if (isDev) {
+                        console.debug('🔁 Received server echo for own message, attempting reconciliation');
+                    }
+
+                    let matched = false;
+                    setMessages((prev) => {
+                        const idx = prev.findIndex((m) =>
+                            m.sender_id === currentUser?.username &&
+                            typeof m._id === 'string' && m._id.startsWith('pending-') &&
+                            // Correlate by unique crypto fields (signature preferred)
+                            (m.signature && m.signature === data.signature ||
+                             (m.nonce === data.nonce && m.tag === data.tag) ||
+                             m.encrypted_message === data.encrypted_message)
+                        );
+
+                        if (idx !== -1) {
+                            matched = true;
+                            const optimistic = prev[idx];
+                            const updated = {
+                                ...optimistic,
+                                // Preserve plaintext already shown; update server-provided ids/metadata
+                                _id: data._id,
+                                formatted_timestamp: data.formatted_timestamp || optimistic.formatted_timestamp,
+                                timestamp: data.timestamp || optimistic.timestamp,
+                                // Ensure we keep authoritative crypto metadata from server
+                                nonce: data.nonce ?? optimistic.nonce,
+                                tag: data.tag ?? optimistic.tag,
+                                signature: data.signature ?? optimistic.signature,
+                            };
+                            const copy = prev.slice();
+                            copy[idx] = updated;
+                            if (isDev) {
+                                console.debug('✅ Reconciled optimistic message with server id:', { temp: optimistic._id, server: data._id });
+                            }
+                            return copy;
+                        }
+                        return prev;
+                    });
+
+                    // Fallback insert if no matching optimistic message was found (e.g., page reload)
+                    if (!matched && (data.sender_id === selectedUser?.username || data.recipient_id === selectedUser?.username)) {
+                        try {
+                            // Decrypt to keep UI consistent (show plaintext)
+                            const decryptResponse = await api.post('/decrypt', {
+                                session_id: session.session_id,
+                                ciphertext: data.encrypted_message,
+                                nonce: data.nonce,
+                                tag: data.tag
+                            });
+                            const decryptedMessage = decryptResponse.data.plaintext;
+                            setMessages((prev) => [...prev, { ...data, encrypted_message: decryptedMessage }]);
+                        } catch (e) {
+                            // As a last resort, append as-is
+                            setMessages((prev) => [...prev, data]);
+                        }
+                    }
+                    return; // Done handling own message echo
+                }
+
+                // Messages from the other participant in the selected chat
                 if (data.sender_id === selectedUser?.username || data.recipient_id === selectedUser?.username) {
                     try {
                         const verifyResponse = await api.post('/verify', {
@@ -217,8 +340,28 @@ const Chat = () => {
                     }
                 }
             });
+
+            // Listen for message send confirmation
+            socket.on('message_sent', (data) => {
+                if (isDev) {
+                    console.log('✅ Message sent successfully:', data);
+                }
+                message.success('Message delivered');
+            });
+
+            // Listen for message errors from server
+            socket.on('message_error', (error) => {
+                console.error('❌ Message error from server:', error);
+                message.error(error.message || 'Failed to send message');
+            });
+
+            return () => {
+                socket.off('new_message');
+                socket.off('message_sent');
+                socket.off('message_error');
+            };
         }
-    }, [socket, selectedUser, session]);
+    }, [socket, selectedUser, session, currentUser]);
 
     useEffect(() => {
         if (messageListRef.current) {
@@ -239,30 +382,8 @@ const Chat = () => {
             
             if (qkeResponse.data.status === 'ready') {
                 message.success('Secure session established');
-                
-                // Fetch message history after session is ready
-                const response = await api.get(`/messages?user_a=${currentUser.username}&user_b=${user.username}`);
-                
-                // Decrypt messages if they have encryption data
-                const decryptedMessages = await Promise.all(response.data.map(async (msg) => {
-                    if (msg.nonce && msg.tag) {
-                        try {
-                            const decryptResponse = await api.post('/decrypt', {
-                                session_id: qkeResponse.data.session_id,
-                                ciphertext: msg.encrypted_message,
-                                nonce: msg.nonce,
-                                tag: msg.tag
-                            });
-                            return { ...msg, encrypted_message: decryptResponse.data.plaintext };
-                        } catch (err) {
-                            console.error('Failed to decrypt message:', err);
-                            return { ...msg, encrypted_message: '[Encrypted]' };
-                        }
-                    }
-                    return msg;
-                }));
-                
-                setMessages(decryptedMessages);
+                // As per product decision, do not fetch or show history; start fresh each session
+                setMessages([]);
             } else {
                 message.error('Failed to establish secure session');
             }
@@ -274,34 +395,83 @@ const Chat = () => {
     };
 
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !selectedUser || !session) return;
+        if (isDev) {
+            console.log('🔄 Attempting to send message...');
+            console.log('   Socket connected:', socket?.connected);
+            console.log('   Selected user:', selectedUser?.username);
+            console.log('   Session:', session?.session_id);
+        }
+        
+        if (!newMessage.trim() || !selectedUser || !session) {
+            if (!newMessage.trim()) {
+                message.warning('Please enter a message');
+            } else if (!selectedUser) {
+                message.warning('Please select a user to chat with');
+            } else if (!session) {
+                message.error('No secure session established. Please try selecting the user again.');
+            }
+            return;
+        }
+
+        // Check socket connection
+        if (!socket || !socket.connected) {
+            console.error('❌ Socket not connected');
+            message.error('Not connected to server. Please refresh the page and try again.');
+            return;
+        }
+
+        const messageToSend = newMessage;
+        setNewMessage(''); // Clear input immediately for better UX
 
         try {
-            const encryptResponse = await api.post('/encrypt', {
-                session_id: session.session_id,
-                message: newMessage
-            });
+            if (isDev) console.log('🧩 Preparing message (encrypt+sign+Kyber package)...');
 
-            const signResponse = await api.post('/sign', {
-                user_id: currentUser.username,
-                message: encryptResponse.data.ciphertext
+            // New unified pipeline endpoint: encrypt -> sign -> Kyber package
+            const prepared = await api.post('/prepare_message', {
+                session_id: session.session_id,
+                sender_id: currentUser.username,
+                recipient_id: selectedUser.username,
+                message: messageToSend
+            }).catch(err => {
+                console.error('❌ Prepare failed:', err.response?.data || err.message);
+                throw new Error(`Prepare failed: ${err.response?.data?.error || err.message}`);
             });
 
             const messageData = {
                 sender_id: currentUser.username,
                 recipient_id: selectedUser.username,
-                encrypted_message: encryptResponse.data.ciphertext,
-                nonce: encryptResponse.data.nonce,
-                tag: encryptResponse.data.tag,
-                signature: signResponse.data.signature,
-                formatted_timestamp: new Date().toLocaleString()
+                // Kyber envelope fields
+                kyber_ct: prepared.data.kyber_ct,
+                outer_ciphertext: prepared.data.outer_ciphertext,
+                outer_nonce: prepared.data.outer_nonce,
+                outer_tag: prepared.data.outer_tag,
+                formatted_timestamp: prepared.data.formatted_timestamp
             };
 
+            if (isDev) {
+                console.log('📤 Emitting packaged message via Socket.IO...');
+            }
             socket.emit('send_message', messageData);
-            setMessages((prevMessages) => [...prevMessages, { ...messageData, encrypted_message: newMessage }]);
-            setNewMessage('');
+            if (isDev) console.log('✅ Message emitted to server');
+
+            // Optimistically add to local messages (will be confirmed by server)
+            // Optimistically add plaintext to UI (server will reconcile id on echo)
+            setMessages((prevMessages) => [
+                ...prevMessages,
+                {
+                    _id: 'pending-' + Date.now(),
+                    sender_id: currentUser.username,
+                    recipient_id: selectedUser.username,
+                    encrypted_message: messageToSend,
+                    formatted_timestamp: new Date().toLocaleString()
+                }
+            ]);
+
         } catch (error) {
-            message.error('Failed to send message');
+            console.error('❌ Failed to send message:', error);
+            // Restore the message to input on failure
+            setNewMessage(messageToSend);
+            message.error(error.message || 'Failed to send message. Please try again.');
         }
     };
 
@@ -335,6 +505,10 @@ const Chat = () => {
                             <h2>{selectedUser.username}</h2>
                             {session && <span style={{ color: 'green' }}><LockOutlined /> Secure</span>}
                         </ChatHeader>
+                        <MessageNotice>
+                            <InfoCircleOutlined />
+                            Messages are ephemeral and not stored. Closing or refreshing the chat will clear the conversation history.
+                        </MessageNotice>
                         <ChatContent>
                             <MessageList ref={messageListRef}>
                                 {messages.map((msg, index) => (

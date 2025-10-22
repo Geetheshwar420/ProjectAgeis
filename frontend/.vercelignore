@@ -1,0 +1,6 @@
+# Ignore dev-only files during Vercel build deployment
+**/*.test.*
+**/__tests__/**
+coverage/
+.vscode/
+docs/

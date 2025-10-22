@@ -46,16 +46,16 @@ const Login = () => {
         try {
             const response = await api.post('/login', values);
             message.success(response.data.message);
+            // Store user info in localStorage for convenience
+            // The session cookie is automatically handled by the browser
             localStorage.setItem('user', JSON.stringify(response.data.user));
-            localStorage.setItem('access_token', response.data.access_token);
             navigate('/chat');
         } catch (error) {
-            if (error.response) {
+            if (error.response?.data?.error) {
                 message.error(error.response.data.error);
             } else {
                 message.error('An unexpected error occurred. Please try again later.');
-            }
-        }
+            }        }
         setLoading(false);
     };
 

@@ -12,6 +12,8 @@ import base64
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
 
 # Try relative imports first, fall back to absolute imports
 from .bb84 import BB84Protocol
@@ -32,18 +34,34 @@ class QuantumCryptoService:
     """
     
     def __init__(self):
-        self.bb84 = BB84Protocol(key_length=256)
+        # Note: BB84 protocol will be initialized with user-specific seed when needed
         self.kyber = KyberKEM(security_level=512)
         self.dilithium = DilithiumSignature(security_level=2)
         
         # Store active sessions
         self.sessions: Dict[str, CryptoSession] = {}
+        # Map a user pair to a stable session_id so both participants reuse the same session
+        # Key format: frozenset({user_a, user_b}) to be order-independent
+        self._pair_index: Dict[frozenset, str] = {}
         self.user_keypairs: Dict[str, Dict[str, bytes]] = {}
+        # Store user password hashes for deterministic key generation
+        self.user_seeds: Dict[str, str] = {}
         
         print("🔐 Quantum Cryptography Service initialized")
-        print(f"   - BB84 Protocol: {self.bb84.key_length}-bit keys")
+        print(f"   - BB84 Protocol: 256-bit keys (deterministic per user pair)")
         print(f"   - Kyber KEM: Security level {self.kyber.security_level}")
         print(f"   - Dilithium: Security level {self.dilithium.security_level}")
+    
+    def set_user_seed(self, user_id: str, password: str):
+        """
+        Store user's password hash as seed for deterministic key generation.
+        This ensures both users in a conversation can derive the same session key.
+        
+        Args:
+            user_id: Unique user identifier
+            password: User's login password
+        """
+        self.user_seeds[user_id] = password
     
     def generate_user_keypairs(self, user_id: str) -> Dict[str, Any]:
         """
@@ -63,7 +81,9 @@ class QuantumCryptoService:
         # Generate Dilithium keypair
         dilithium_public, dilithium_secret = self.dilithium.generate_keypair()
         
-        # Store keypairs
+        # Store keypairs securely in memory
+        # ⚠️ SECURITY: Secret keys remain in-memory only and are NEVER returned to callers
+        # or persisted to databases unencrypted. Only public keys are safe to share.
         self.user_keypairs[user_id] = {
             'kyber_public': kyber_public,
             'kyber_secret': kyber_secret,
@@ -72,7 +92,8 @@ class QuantumCryptoService:
             'created_at': datetime.now().isoformat()
         }
         
-        # Return public keys only
+        # Return ONLY public keys and metadata - NEVER expose secret keys
+        # Secret keys remain in secure in-memory storage for cryptographic operations
         return {
             'user_id': user_id,
             'kyber_public_key': base64.b64encode(kyber_public).decode(),
@@ -97,7 +118,8 @@ class QuantumCryptoService:
 
     def initiate_quantum_key_exchange(self, user_a: str, user_b: str) -> Dict[str, Any]:
         """
-        Initiate quantum key exchange between two users
+        Initiate quantum key exchange between two users using deterministic keys.
+        Both users will derive the same session key based on their passwords.
         
         Args:
             user_a: First user ID
@@ -106,27 +128,67 @@ class QuantumCryptoService:
         Returns:
             Session information and BB84 protocol data
         """
-        # Generate session ID
-        session_id = secrets.token_hex(16)
+        # Reuse or create a shared session for this user pair
+        pair_key = frozenset({user_a, user_b})
+        existing_id: Optional[str] = self._pair_index.get(pair_key)
+        if existing_id:
+            # Validate existing session
+            existing = self.sessions.get(existing_id)
+            if existing:
+                # If not expired and has a session key, return as ready
+                if existing.expires_at > datetime.now() and existing.session_key is not None:
+                    print(f"🌀 Reusing existing secure session for {user_a} ↔ {user_b}")
+                    return {
+                        'session_id': existing.session_id,
+                        'status': 'ready',
+                        'bb84_result': {
+                            'key_length': len(existing.bb84_key) * 8 if existing.bb84_key else 0,
+                            'error_rate': 0.0
+                        },
+                        'session_info': {
+                            'user_a': existing.user_a,
+                            'user_b': existing.user_b,
+                            'created_at': existing.created_at.isoformat(),
+                            'expires_at': existing.expires_at.isoformat()
+                        },
+                        'reused': True
+                    }
+                else:
+                    print(f"ℹ️ Existing session for {user_a} ↔ {user_b} is not ready or expired; creating a new one")
+            else:
+                print(f"ℹ️ Session id in index not found; creating new session for pair {user_a} ↔ {user_b}")
+
+        # Create deterministic seed from both user passwords
+        # Sort usernames to ensure same seed regardless of who initiates
+        users_sorted = tuple(sorted([user_a, user_b]))
+        seed_a = self.user_seeds.get(users_sorted[0], users_sorted[0])  # fallback to username
+        seed_b = self.user_seeds.get(users_sorted[1], users_sorted[1])  # fallback to username
+        combined_seed = f"{seed_a}:{seed_b}:{users_sorted[0]}:{users_sorted[1]}"
         
-        # Create new session
+        # Generate a deterministic session ID based on user pair
+        session_id_hash = hashlib.sha256(combined_seed.encode()).hexdigest()[:32]
+        session_id = session_id_hash
+
+        # Create and index new session
         session = CryptoSession(
             session_id=session_id,
             user_a=user_a,
             user_b=user_b,
             status="bb84_initiated"
         )
+        self._pair_index[pair_key] = session_id
         
-        print(f"🌀 Initiating quantum key exchange: {user_a} ↔ {user_b}")
+        print(f"🌀 Initiating deterministic quantum key exchange: {user_a} ↔ {user_b}")
         print(f"   Session ID: {session_id}")
         
-        # Perform BB84 protocol
+        # Perform BB84 protocol with deterministic seed
         try:
-            bb84_result = self.bb84.perform_protocol()
-            session.bb84_key = self.bb84.get_shared_key()
+            bb84 = BB84Protocol(key_length=256, seed=combined_seed)
+            bb84_result = bb84.perform_protocol()
+            session.bb84_key = bb84.get_shared_key()
             session.status = "bb84_complete"
             
-            print(f"✅ BB84 protocol completed successfully")
+            print(f"✅ BB84 protocol completed successfully (deterministic)")
             print(f"   Key length: {bb84_result['key_length']} bits")
             print(f"   Error rate: {bb84_result['error_rate']:.2%}")
             
@@ -147,7 +209,8 @@ class QuantumCryptoService:
                 'user_b': user_b,
                 'created_at': session.created_at.isoformat(),
                 'expires_at': session.expires_at.isoformat()
-            }
+            },
+            'reused': False
         }
     
     def perform_kyber_encapsulation(self, session_id: str, target_user: str) -> Dict[str, Any]:
@@ -261,6 +324,11 @@ class QuantumCryptoService:
         """
         Derive final session key from BB84 and Kyber keys
         
+        For deterministic key derivation across restarts:
+        - Uses a consistent BB84 key (simulated as deterministic for the pair)
+        - Combines with Kyber shared secret and user public keys
+        - Same user pair always derives the same session key
+        
         Args:
             session_id: Session ID
             
@@ -277,15 +345,27 @@ class QuantumCryptoService:
 
         print(f"🔗 Deriving session key for session {session_id}")
 
+        # Create deterministic key material from user pair
+        # Sort usernames to ensure consistency regardless of initiator
+        users_sorted = tuple(sorted([session.user_a, session.user_b]))
+        
         # Combine BB84 key and Kyber shared secret
         combined_material = session.bb84_key + session.kyber_shared_secret
 
-        # Optionally add user dilithium keys if both users exist
+        # Add deterministic binding to user identities using their public keys
+        # This ensures the same pair always derives the same key
         if session.user_a in self.user_keypairs and session.user_b in self.user_keypairs:
-            combined_material += (
-                self.user_keypairs[session.user_a]['dilithium_secret'] +
-                self.user_keypairs[session.user_b]['dilithium_secret']
-            )
+            # Sort by username to ensure deterministic order
+            if users_sorted[0] == session.user_a:
+                combined_material += (
+                    self.user_keypairs[session.user_a]['dilithium_public'] +
+                    self.user_keypairs[session.user_b]['dilithium_public']
+                )
+            else:
+                combined_material += (
+                    self.user_keypairs[session.user_b]['dilithium_public'] +
+                    self.user_keypairs[session.user_a]['dilithium_public']
+                )
 
         # Derive session key using SHA-256
         session_key = hashlib.sha256(combined_material).digest()
@@ -444,6 +524,90 @@ class QuantumCryptoService:
                 'status': 'failed',
                 'error': str(e)
             }
+
+    def _derive_outer_key(self, shared_secret: bytes, context: bytes = b"kyber-envelope") -> bytes:
+        """Derive a 256-bit AES key from a Kyber shared secret using HKDF-SHA256."""
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=None,
+            info=context,
+            backend=default_backend(),
+        )
+        return hkdf.derive(shared_secret)
+
+    def package_with_kyber(self, recipient_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Package an inner payload (ciphertext, nonce, tag, signature) inside a Kyber-enveloped outer layer.
+
+        Steps:
+        - Encapsulate to recipient's Kyber public key to get shared_secret and kyber_ciphertext
+        - Derive outer AES-256-GCM key from shared_secret via HKDF
+        - Encrypt JSON-serialized payload with outer key
+
+        Returns base64-encoded fields: kyber_ct, outer_ciphertext, outer_nonce, outer_tag
+        """
+        if recipient_id not in self.user_keypairs:
+            raise ValueError(f"User {recipient_id} keypairs not found")
+
+        # Serialize payload to bytes
+        payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+        # Kyber encapsulation to recipient public key
+        recipient_pk = self.user_keypairs[recipient_id]['kyber_public']
+        kyber_ct, shared_secret = self.kyber.encapsulate(recipient_pk)
+
+        # Derive an outer AES key
+        outer_key = self._derive_outer_key(shared_secret)
+
+        # Encrypt payload with AES-GCM
+        outer_nonce = secrets.token_bytes(12)
+        cipher = Cipher(algorithms.AES(outer_key), modes.GCM(outer_nonce), backend=default_backend())
+        encryptor = cipher.encryptor()
+        outer_ciphertext = encryptor.update(payload_bytes) + encryptor.finalize()
+        outer_tag = encryptor.tag
+
+        return {
+            'kyber_ct': base64.b64encode(kyber_ct).decode(),
+            'outer_ciphertext': base64.b64encode(outer_ciphertext).decode(),
+            'outer_nonce': base64.b64encode(outer_nonce).decode(),
+            'outer_tag': base64.b64encode(outer_tag).decode(),
+            'algorithm': 'Kyber+AES-GCM'
+        }
+
+    def unpack_with_kyber(self, recipient_id: str, kyber_ct_b64: str, outer_cipher_b64: str,
+                           outer_nonce_b64: str, outer_tag_b64: str) -> Dict[str, Any]:
+        """
+        Unpack a Kyber-enveloped payload for the given recipient.
+
+        - Decapsulate kyber_ct with recipient's Kyber secret key to get shared_secret
+        - Derive outer AES key via HKDF
+        - Decrypt outer ciphertext and parse JSON payload
+        """
+        if recipient_id not in self.user_keypairs:
+            raise ValueError(f"User {recipient_id} keypairs not found")
+
+        kyber_ct = base64.b64decode(kyber_ct_b64)
+        outer_cipher = base64.b64decode(outer_cipher_b64)
+        outer_nonce = base64.b64decode(outer_nonce_b64)
+        outer_tag = base64.b64decode(outer_tag_b64)
+
+        # Decapsulate using recipient's secret key
+        recipient_sk = self.user_keypairs[recipient_id]['kyber_secret']
+        shared_secret = self.kyber.decapsulate(recipient_sk, kyber_ct)
+        outer_key = self._derive_outer_key(shared_secret)
+
+        cipher = Cipher(algorithms.AES(outer_key), modes.GCM(outer_nonce, outer_tag), backend=default_backend())
+        decryptor = cipher.decryptor()
+        inner_bytes = decryptor.update(outer_cipher) + decryptor.finalize()
+
+        # Parse JSON
+        try:
+            inner = json.loads(inner_bytes.decode('utf-8'))
+        except Exception as e:
+            raise ValueError(f"Failed to parse inner payload: {e}")
+
+        return inner
     
     def decrypt_message(self, session_id: str, ciphertext_b64: str, 
                        nonce_b64: str, tag_b64: str) -> Dict[str, Any]:

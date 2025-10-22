@@ -1,0 +1,5 @@
+/docs/
+*.log
+*.bak
+*.tmp
+*.swp

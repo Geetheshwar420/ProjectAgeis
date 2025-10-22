@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.log
+.tests/
+tests/
+*test_*.py
+*.pytest_cache/
+.git/
+.gitignore
+.vscode/
+.DS_Store

@@ -1,1 +1,56 @@
+# Environment variables - ALL variants should be ignored
 .env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+*.env
+
+# Keep only example/template files
+!.env.example
+!.env.production.example
+!.env.*.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Flask
+instance/
+flask_session/
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+test_*.py
+*_test.py
+smoke_test.py
+
+# Backup files
+*.bak
+*_backup.*
+*_jwt.*
+
+# Development scripts (not needed in production)
+cleanup_for_production.ps1
+pre-deploy-check.ps1
+init_db_standalone.py
+
+# Documentation that should be consolidated
+DEPLOY_NOW.md
+
+# SQLite database (use CockroachDB in production)
+messaging_app.db
+
+# OS
+.DS_Store
+Thumbs.db
