@@ -1158,8 +1158,13 @@ def prepare_message():
         if enc.get('status') == 'failed':
             return jsonify({'error': enc.get('error', 'Encryption failed')}), 400
 
-        # 2) Sign ciphertext with sender's Dilithium key
-        sig = crypto_service.sign_message(sender_id, base64.b64decode(enc['ciphertext']))
+        # 2) Sign ciphertext with sender's Dilithium key (offloaded to eventlet thread pool to avoid worker timeouts)
+        ciphertext_bytes = base64.b64decode(enc['ciphertext'])
+        try:
+            sig = eventlet.tpool.execute(crypto_service.sign_message, sender_id, ciphertext_bytes)
+        except Exception as tpool_err:
+            logging.error(f"Signing (tpool) failed: {tpool_err}", exc_info=True)
+            return jsonify({'error': 'Signing failed'}), 400
         if sig.get('status') == 'failed' or 'signature' not in sig:
             return jsonify({'error': sig.get('error', 'Signing failed')}), 400
 
@@ -1170,7 +1175,11 @@ def prepare_message():
             'tag': enc['tag'],
             'signature': sig['signature']
         }
-        packaged = crypto_service.package_with_kyber(recipient_id, inner_payload)
+        try:
+            packaged = eventlet.tpool.execute(crypto_service.package_with_kyber, recipient_id, inner_payload)
+        except Exception as tpool_err:
+            logging.error(f"Kyber packaging (tpool) failed: {tpool_err}", exc_info=True)
+            return jsonify({'error': 'Packaging failed'}), 400
 
         return jsonify({
             'sender_id': sender_id,
