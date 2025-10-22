@@ -363,37 +363,77 @@ def emit_user_status(username, is_online):
     # Get user's friends to notify them
     db = get_db()
     try:
-        cursor = db.cursor()
-        # Prefer accepted friend relationships from friend_requests
-        if db.db_type == "postgresql":
-            cursor.execute(
-                """
-                SELECT u.username AS friend_username
-                  FROM friend_requests fr
-                  JOIN users u ON (CASE WHEN fr.requester = (SELECT id FROM users WHERE username = %s)
-                                        THEN fr.recipient ELSE fr.requester END) = u.id
-                 WHERE fr.status = 'accepted'
-                   AND (fr.requester = (SELECT id FROM users WHERE username = %s)
-                    OR  fr.recipient = (SELECT id FROM users WHERE username = %s))
-                """,
-                (username, username, username)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT CASE WHEN fr.requester = (SELECT id FROM users WHERE username = ?)
-                            THEN u2.username ELSE u1.username END AS friend_username
-                  FROM friend_requests fr
-                  JOIN users u1 ON fr.requester = u1.id
-                  JOIN users u2 ON fr.recipient = u2.id
-                 WHERE fr.status = 'accepted'
-                   AND (fr.requester = (SELECT id FROM users WHERE username = ?)
-                    OR  fr.recipient = (SELECT id FROM users WHERE username = ?))
-                """,
-                (username, username, username)
-            )
+        # Helper to determine whether friend_requests columns store IDs (ints)
+        def friend_columns_are_int(_db):
+            if _db.db_type != 'postgresql':
+                return False
+            try:
+                cur = _db.cursor()
+                cur.execute(
+                    """
+                    SELECT data_type FROM information_schema.columns
+                     WHERE table_schema='public' AND table_name='friend_requests' AND column_name='requester'
+                    """
+                )
+                row = cur.fetchone()
+                if not row:
+                    return False
+                dtype = row['data_type'] if isinstance(row, dict) else row[0]
+                return dtype.lower() in ('integer', 'bigint')
+            except Exception:
+                return False
 
-        friends = [row['friend_username'] if isinstance(row, dict) else row[0] for row in cursor.fetchall()]
+        friends = []
+        if friend_columns_are_int(db):
+            # Resolve current user's id
+            me_row = db.fetchone('SELECT id FROM users WHERE username = %s' if db.db_type == 'postgresql' else 'SELECT id FROM users WHERE username = ?', (username,))
+            if me_row:
+                me_id = me_row['id'] if isinstance(me_row, dict) else me_row[0]
+                if db.db_type == 'postgresql':
+                    rows = db.fetchall(
+                        """
+                        SELECT u.username AS friend_username
+                          FROM friend_requests fr
+                          JOIN users u ON (CASE WHEN fr.requester = %s THEN fr.recipient ELSE fr.requester END) = u.id
+                         WHERE fr.status = 'accepted'
+                           AND (%s = fr.requester OR %s = fr.recipient)
+                        """,
+                        (me_id, me_id, me_id)
+                    )
+                else:
+                    rows = db.fetchall(
+                        """
+                        SELECT CASE WHEN fr.requester = ? THEN u2.username ELSE u1.username END AS friend_username
+                          FROM friend_requests fr
+                          JOIN users u1 ON fr.requester = u1.id
+                          JOIN users u2 ON fr.recipient = u2.id
+                         WHERE fr.status = 'accepted'
+                           AND (? = fr.requester OR ? = fr.recipient)
+                        """,
+                        (me_id, me_id, me_id)
+                    )
+                friends = [r['friend_username'] if isinstance(r, dict) else r[0] for r in rows]
+        else:
+            # friend_requests stores usernames directly (text)
+            if db.db_type == 'postgresql':
+                rows = db.fetchall(
+                    """
+                    SELECT CASE WHEN fr.requester = %s THEN fr.recipient ELSE fr.requester END AS friend_username
+                      FROM friend_requests fr
+                     WHERE fr.status = 'accepted' AND (%s = fr.requester OR %s = fr.recipient)
+                    """,
+                    (username, username, username)
+                )
+            else:
+                rows = db.fetchall(
+                    """
+                    SELECT CASE WHEN fr.requester = ? THEN fr.recipient ELSE fr.requester END AS friend_username
+                      FROM friend_requests fr
+                     WHERE fr.status = 'accepted' AND (? = fr.requester OR ? = fr.recipient)
+                    """,
+                    (username, username, username)
+                )
+            friends = [r['friend_username'] if isinstance(r, dict) else r[0] for r in rows]
 
         notified = False
         for friend_username in friends:
@@ -677,7 +717,7 @@ def get_user_status(username):
 
 
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(auth=None):
     """
     Handle SocketIO connection with session-based validation.
     Expects the client to send session cookie.
@@ -1273,15 +1313,25 @@ def get_messages():
     user_a = request.args.get('user_a')
     user_b = request.args.get('user_b')
     db = get_db()
-    # Use adapter helpers to be portable across SQLite and PostgreSQL
-    rows = db.fetchall('''
-        SELECT id, sender_id, recipient_id, encrypted_message, signature,
-               nonce, tag, timestamp, formatted_timestamp, iso_timestamp
-        FROM messages
-        WHERE (sender_id = ? AND recipient_id = ?)
-           OR (sender_id = ? AND recipient_id = ?)
-        ORDER BY timestamp ASC
-    ''', (user_a, user_b, user_b, user_a))
+    # Use correct placeholder style per database
+    if db.db_type == 'postgresql':
+        rows = db.fetchall('''
+            SELECT id, sender_id, recipient_id, encrypted_message, signature,
+                   nonce, tag, timestamp, formatted_timestamp, iso_timestamp
+              FROM messages
+             WHERE (sender_id = %s AND recipient_id = %s)
+                OR (sender_id = %s AND recipient_id = %s)
+          ORDER BY timestamp ASC
+        ''', (user_a, user_b, user_b, user_a))
+    else:
+        rows = db.fetchall('''
+            SELECT id, sender_id, recipient_id, encrypted_message, signature,
+                   nonce, tag, timestamp, formatted_timestamp, iso_timestamp
+              FROM messages
+             WHERE (sender_id = ? AND recipient_id = ?)
+                OR (sender_id = ? AND recipient_id = ?)
+          ORDER BY timestamp ASC
+        ''', (user_a, user_b, user_b, user_a))
     messages = []
     for row in rows:
         messages.append({
@@ -1333,11 +1383,18 @@ def update_user(username):
     db = get_db()
     cursor = db.cursor()
     try:
-        cursor.execute('''
-            UPDATE users
-            SET email = ?
-            WHERE username = ?
-        ''', (new_email, username))
+        if db.db_type == 'postgresql':
+            cursor.execute('''
+                UPDATE users
+                SET email = %s
+                WHERE username = %s
+            ''', (new_email, username))
+        else:
+            cursor.execute('''
+                UPDATE users
+                SET email = ?
+                WHERE username = ?
+            ''', (new_email, username))
         db.commit()
 
         # Update session email only
@@ -1361,21 +1418,33 @@ def delete_user(username):
     try:
         # Delete user and related records in a transaction to prevent orphaned data
         # First, get user ID for foreign key cascades
-        cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
+        if db.db_type == 'postgresql':
+            cursor.execute('SELECT id FROM users WHERE username = %s', (username,))
+        else:
+            cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
         user_row = cursor.fetchone()
         if not user_row:
             return jsonify({'error': 'User not found'}), 404
-        user_id = user_row['id']
+        user_id = user_row['id'] if isinstance(user_row, dict) else user_row[0]
         
         # Delete related records first to maintain referential integrity
         # Messages use username (TEXT) in sender_id/recipient_id columns
-        cursor.execute('DELETE FROM messages WHERE sender_id = ? OR recipient_id = ?', (username, username))
+        if db.db_type == 'postgresql':
+            cursor.execute('DELETE FROM messages WHERE sender_id = %s OR recipient_id = %s', (username, username))
+        else:
+            cursor.execute('DELETE FROM messages WHERE sender_id = ? OR recipient_id = ?', (username, username))
         
         # Friend requests use INTEGER foreign keys (requester/recipient)
-        cursor.execute('DELETE FROM friend_requests WHERE requester = ? OR recipient = ?', (user_id, user_id))
+        if db.db_type == 'postgresql':
+            cursor.execute('DELETE FROM friend_requests WHERE requester = %s OR recipient = %s', (user_id, user_id))
+        else:
+            cursor.execute('DELETE FROM friend_requests WHERE requester = ? OR recipient = ?', (user_id, user_id))
         
         # Finally, delete the user
-        cursor.execute('DELETE FROM users WHERE username = ?', (username,))
+        if db.db_type == 'postgresql':
+            cursor.execute('DELETE FROM users WHERE username = %s', (username,))
+        else:
+            cursor.execute('DELETE FROM users WHERE username = ?', (username,))
         
         db.commit()
         
@@ -1413,11 +1482,18 @@ def update_password(username):
 
     hashed_password = User.hash_password(new_password)
     cursor = db.cursor()
-    cursor.execute('''
-        UPDATE users
-        SET password_hash = ?
-        WHERE username = ?
-    ''', (hashed_password, username))
+    if db.db_type == 'postgresql':
+        cursor.execute('''
+            UPDATE users
+            SET password_hash = %s
+            WHERE username = %s
+        ''', (hashed_password, username))
+    else:
+        cursor.execute('''
+            UPDATE users
+            SET password_hash = ?
+            WHERE username = ?
+        ''', (hashed_password, username))
     db.commit()
 
     return jsonify({'message': 'Password updated successfully'}), 200
@@ -1434,23 +1510,35 @@ def send_friend_request():
     cursor = db.cursor()
     try:
         # Get user IDs from usernames for proper foreign key references
-        cursor.execute('SELECT id FROM users WHERE username = ?', (requester_username,))
+        if db.db_type == 'postgresql':
+            cursor.execute('SELECT id FROM users WHERE username = %s', (requester_username,))
+        else:
+            cursor.execute('SELECT id FROM users WHERE username = ?', (requester_username,))
         requester_row = cursor.fetchone()
         if not requester_row:
             return jsonify({'error': 'Requester not found'}), 404
-        requester_id = requester_row['id']
+        requester_id = requester_row['id'] if isinstance(requester_row, dict) else requester_row[0]
         
-        cursor.execute('SELECT id FROM users WHERE username = ?', (recipient_username,))
+        if db.db_type == 'postgresql':
+            cursor.execute('SELECT id FROM users WHERE username = %s', (recipient_username,))
+        else:
+            cursor.execute('SELECT id FROM users WHERE username = ?', (recipient_username,))
         recipient_row = cursor.fetchone()
         if not recipient_row:
             return jsonify({'error': 'Recipient not found'}), 404
-        recipient_id = recipient_row['id']
+        recipient_id = recipient_row['id'] if isinstance(recipient_row, dict) else recipient_row[0]
         
         # Insert with INTEGER foreign keys
-        cursor.execute('''
-            INSERT INTO friend_requests (requester, recipient, status)
-            VALUES (?, ?, 'pending')
-        ''', (requester_id, recipient_id))
+        if db.db_type == 'postgresql':
+            cursor.execute('''
+                INSERT INTO friend_requests (requester, recipient, status)
+                VALUES (%s, %s, 'pending')
+            ''', (requester_id, recipient_id))
+        else:
+            cursor.execute('''
+                INSERT INTO friend_requests (requester, recipient, status)
+                VALUES (?, ?, 'pending')
+            ''', (requester_id, recipient_id))
         db.commit()
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Friend request already exists'}), 400
@@ -1467,17 +1555,60 @@ def get_friend_requests(username):
     if session.get('username') != username:
         return jsonify({'error': 'Unauthorized'}), 401
     db = get_db()
-    cursor = db.cursor()
     
-    # JOIN with users table to get requester username from user ID
-    cursor.execute('''
-        SELECT fr.id, u.username as requester, fr.recipient, fr.status, fr.created_at
-        FROM friend_requests fr
-        JOIN users u ON fr.requester = u.id
-        WHERE fr.recipient = (SELECT id FROM users WHERE username = ?) 
-        AND fr.status = 'pending'
-    ''', (username,))
-    rows = cursor.fetchall()
+    # Detect schema variant for friend_requests
+    def friend_columns_are_int(_db):
+        if _db.db_type != 'postgresql':
+            return False
+        try:
+            cur = _db.cursor()
+            cur.execute(
+                """
+                SELECT data_type FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='friend_requests' AND column_name='recipient'
+                """
+            )
+            row = cur.fetchone()
+            if not row:
+                return False
+            dtype = row['data_type'] if isinstance(row, dict) else row[0]
+            return dtype.lower() in ('integer', 'bigint')
+        except Exception:
+            return False
+
+    if friend_columns_are_int(db):
+        # Recipient is stored as user ID; join to get requester username
+        if db.db_type == 'postgresql':
+            rows = db.fetchall('''
+                SELECT fr.id, u.username as requester, fr.recipient, fr.status, fr.created_at
+                  FROM friend_requests fr
+                  JOIN users u ON fr.requester = u.id
+                 WHERE fr.recipient = (SELECT id FROM users WHERE username = %s) 
+                   AND fr.status = 'pending'
+            ''', (username,))
+        else:
+            rows = db.fetchall('''
+                SELECT fr.id, u.username as requester, fr.recipient, fr.status, fr.created_at
+                  FROM friend_requests fr
+                  JOIN users u ON fr.requester = u.id
+                 WHERE fr.recipient = (SELECT id FROM users WHERE username = ?) 
+                   AND fr.status = 'pending'
+            ''', (username,))
+    else:
+        # Recipient/requester usernames stored directly
+        if db.db_type == 'postgresql':
+            rows = db.fetchall('''
+                SELECT fr.id, fr.requester as requester, fr.recipient, fr.status, fr.created_at
+                  FROM friend_requests fr
+                 WHERE fr.recipient = %s AND fr.status = 'pending'
+            ''', (username,))
+        else:
+            rows = db.fetchall('''
+                SELECT fr.id, fr.requester as requester, fr.recipient, fr.status, fr.created_at
+                  FROM friend_requests fr
+                 WHERE fr.recipient = ? AND fr.status = 'pending'
+            ''', (username,))
+
     requests = []
     for row in rows:
         requests.append({
@@ -1496,11 +1627,18 @@ def update_friend_request(request_id):
     new_status = data.get('status')
     db = get_db()
     cursor = db.cursor()
-    cursor.execute('''
-        UPDATE friend_requests
-        SET status = ?
-        WHERE id = ?
-    ''', (new_status, request_id))
+    if db.db_type == 'postgresql':
+        cursor.execute('''
+            UPDATE friend_requests
+               SET status = %s
+             WHERE id = %s
+        ''', (new_status, request_id))
+    else:
+        cursor.execute('''
+            UPDATE friend_requests
+               SET status = ?
+             WHERE id = ?
+        ''', (new_status, request_id))
     db.commit()
     return jsonify({'message': 'Friend request updated'}), 200
 
@@ -1511,32 +1649,68 @@ def get_friends(username):
     if session.get('username') != username:
         return jsonify({'error': 'Unauthorized'}), 401
     db = get_db()
-    cursor = db.cursor()
-    
-    # Get current user's ID
-    cursor.execute('SELECT id FROM users WHERE username = ?', (username,))
-    user_row = cursor.fetchone()
-    if not user_row:
-        return jsonify({'error': 'User not found'}), 404
-    user_id = user_row['id']
-    
-    # Get friends with JOIN to retrieve usernames
-    cursor.execute('''
-        SELECT 
-            CASE 
-                WHEN fr.requester = ? THEN u2.username 
-                ELSE u1.username 
-            END as friend_username
-        FROM friend_requests fr
-        JOIN users u1 ON fr.requester = u1.id
-        JOIN users u2 ON fr.recipient = u2.id
-        WHERE fr.status = 'accepted'
-          AND (fr.requester = ? OR fr.recipient = ?)
-    ''', (user_id, user_id, user_id))
-    rows = cursor.fetchall()
+
+    # Detect whether friend_requests stores IDs (ints) or usernames (text)
+    def friend_columns_are_int(_db):
+        if _db.db_type != 'postgresql':
+            return False
+        try:
+            cur = _db.cursor()
+            cur.execute(
+                """
+                SELECT data_type FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='friend_requests' AND column_name='requester'
+                """
+            )
+            row = cur.fetchone()
+            if not row:
+                return False
+            dtype = row['data_type'] if isinstance(row, dict) else row[0]
+            return dtype.lower() in ('integer', 'bigint')
+        except Exception:
+            return False
+
     friends = []
-    for row in rows:
-        friends.append(row['friend_username'])
+    if friend_columns_are_int(db):
+        # Resolve user ID
+        me_row = db.fetchone('SELECT id FROM users WHERE username = %s' if db.db_type == 'postgresql' else 'SELECT id FROM users WHERE username = ?', (username,))
+        if not me_row:
+            return jsonify({'error': 'User not found'}), 404
+        me_id = me_row['id'] if isinstance(me_row, dict) else me_row[0]
+
+        # Fetch friend usernames via join
+        if db.db_type == 'postgresql':
+            rows = db.fetchall('''
+                SELECT u.username AS friend_username
+                  FROM friend_requests fr
+                  JOIN users u ON (CASE WHEN fr.requester = %s THEN fr.recipient ELSE fr.requester END) = u.id
+                 WHERE fr.status = 'accepted' AND (%s = fr.requester OR %s = fr.recipient)
+            ''', (me_id, me_id, me_id))
+        else:
+            rows = db.fetchall('''
+                SELECT CASE WHEN fr.requester = ? THEN u2.username ELSE u1.username END AS friend_username
+                  FROM friend_requests fr
+                  JOIN users u1 ON fr.requester = u1.id
+                  JOIN users u2 ON fr.recipient = u2.id
+                 WHERE fr.status = 'accepted' AND (? = fr.requester OR ? = fr.recipient)
+            ''', (me_id, me_id, me_id))
+        friends = [r['friend_username'] if isinstance(r, dict) else r[0] for r in rows]
+    else:
+        # Text usernames in friend_requests
+        if db.db_type == 'postgresql':
+            rows = db.fetchall('''
+                SELECT CASE WHEN fr.requester = %s THEN fr.recipient ELSE fr.requester END AS friend_username
+                  FROM friend_requests fr
+                 WHERE fr.status = 'accepted' AND (%s = fr.requester OR %s = fr.recipient)
+            ''', (username, username, username))
+        else:
+            rows = db.fetchall('''
+                SELECT CASE WHEN fr.requester = ? THEN fr.recipient ELSE fr.requester END AS friend_username
+                  FROM friend_requests fr
+                 WHERE fr.status = 'accepted' AND (? = fr.requester OR ? = fr.recipient)
+            ''', (username, username, username))
+        friends = [r['friend_username'] if isinstance(r, dict) else r[0] for r in rows]
+
     return jsonify(friends), 200
 
 
