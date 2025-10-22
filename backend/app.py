@@ -28,6 +28,198 @@ if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path=dotenv_path, verbose=True)
 else:
     print(f"Warning: .env file not found at {dotenv_path}")
+
+def init_app_database():
+    """Initialize database tables if they don't exist"""
+    from db_adapter import DatabaseAdapter
+    
+    try:
+        with DatabaseAdapter() as db:
+            cursor = db.cursor()
+            
+            # Check if users table exists
+            if db.db_type == "postgresql":
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'users'
+                    );
+                """)
+            else:
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='users'
+                """)
+            
+            table_exists = cursor.fetchone()[0] if db.db_type == "postgresql" else bool(cursor.fetchone())
+            
+            if not table_exists:
+                print("📊 Initializing database tables...")
+                
+                # Create users table
+                if db.db_type == "postgresql":
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id SERIAL PRIMARY KEY,
+                            username VARCHAR(80) UNIQUE NOT NULL,
+                            email VARCHAR(120) UNIQUE NOT NULL,
+                            password_hash VARCHAR(255) NOT NULL,
+                            public_key TEXT,
+                            kyber_public_key TEXT,
+                            dilithium_public_key TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                else:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS users (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT UNIQUE NOT NULL,
+                            email TEXT UNIQUE NOT NULL,
+                            password_hash TEXT NOT NULL,
+                            public_key TEXT,
+                            kyber_public_key TEXT,
+                            dilithium_public_key TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                
+                # Create messages table
+                if db.db_type == "postgresql":
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS messages (
+                            id SERIAL PRIMARY KEY,
+                            sender_id INTEGER NOT NULL,
+                            receiver_id INTEGER NOT NULL,
+                            encrypted_content TEXT NOT NULL,
+                            signature TEXT,
+                            session_key_encrypted TEXT,
+                            nonce TEXT,
+                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            is_read BOOLEAN DEFAULT FALSE,
+                            FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+                            FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+                        )
+                    """)
+                else:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS messages (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            sender_id INTEGER NOT NULL,
+                            receiver_id INTEGER NOT NULL,
+                            encrypted_content TEXT NOT NULL,
+                            signature TEXT,
+                            session_key_encrypted TEXT,
+                            nonce TEXT,
+                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            is_read BOOLEAN DEFAULT 0,
+                            FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+                            FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+                        )
+                    """)
+                
+                # Create friend_requests table
+                if db.db_type == "postgresql":
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS friend_requests (
+                            id SERIAL PRIMARY KEY,
+                            requester_id INTEGER NOT NULL,
+                            recipient_id INTEGER NOT NULL,
+                            status VARCHAR(20) DEFAULT 'pending',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+                            FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+                            UNIQUE(requester_id, recipient_id)
+                        )
+                    """)
+                else:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS friend_requests (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            requester_id INTEGER NOT NULL,
+                            recipient_id INTEGER NOT NULL,
+                            status TEXT DEFAULT 'pending',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+                            FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+                            UNIQUE(requester_id, recipient_id)
+                        )
+                    """)
+                
+                # Create friendships table
+                if db.db_type == "postgresql":
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS friendships (
+                            id SERIAL PRIMARY KEY,
+                            user_id INTEGER NOT NULL,
+                            friend_id INTEGER NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                            FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE,
+                            UNIQUE(user_id, friend_id)
+                        )
+                    """)
+                else:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS friendships (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            friend_id INTEGER NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                            FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE,
+                            UNIQUE(user_id, friend_id)
+                        )
+                    """)
+                
+                # Create indexes for better performance
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_messages_sender 
+                    ON messages(sender_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_messages_receiver 
+                    ON messages(receiver_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_messages_timestamp 
+                    ON messages(timestamp)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_friend_requests_recipient 
+                    ON friend_requests(recipient_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_friend_requests_status 
+                    ON friend_requests(status)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_friendships_user 
+                    ON friendships(user_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_friendships_friend 
+                    ON friendships(friend_id)
+                """)
+                
+                db.commit()
+                print("✅ Database tables created successfully!")
+            else:
+                print("✅ Database tables already exist")
+                
+    except Exception as e:
+        print(f"❌ Error initializing database: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+print("\n" + "="*60)
+print("🚀 Starting Quantum Secure Messaging Backend")
+print("="*60 + "\n")
+
+# Initialize database on startup
+init_app_database()
     
 app = create_app()
 

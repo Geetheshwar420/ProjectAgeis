@@ -18,9 +18,8 @@ python-dotenv
 email-validator
 Werkzeug
 
-# Database drivers and ORM
+# Database drivers
 psycopg2-binary
-SQLAlchemy
 
-#other packages 
+# Other packages 
 numpy
