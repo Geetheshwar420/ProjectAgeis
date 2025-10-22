@@ -11,6 +11,9 @@ import FriendRequests from '../components/FriendRequests';
 
 const { Sider, Content, Footer } = Layout;
 
+// Module-level dev flag to avoid hook dependency warnings
+const IS_DEV = process.env.NODE_ENV === 'development';
+
 const ChatLayout = styled(Layout)`
     height: 100vh;
     background: #f0f2f5;
@@ -107,8 +110,6 @@ const ChatFooter = styled(Footer)`
 `;
 
 const Chat = () => {
-    // Development-only logging flag
-    const isDev = process.env.NODE_ENV === 'development';
     
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -194,14 +195,14 @@ const Chat = () => {
         const connectHandler = () => {
             if (!hasShownInitialConnect) {
                 // Only show toast on first connection
-                if (isDev) {
+                if (IS_DEV) {
                     console.log('✅ Socket.IO connected successfully (initial)');
                 }
                 message.success('Connected to server');
                 hasShownInitialConnect = true;
             } else {
                 // Subsequent reconnections - log only, no toast
-                if (isDev) {
+                if (IS_DEV) {
                     console.debug('🔄 Socket.IO reconnected');
                 }
             }
@@ -213,7 +214,7 @@ const Chat = () => {
         };
 
         const disconnectHandler = (reason) => {
-            if (isDev) {
+            if (IS_DEV) {
                 console.log('Socket.IO disconnected:', reason);
             }
             if (reason === 'io server disconnect' && newSocket.connected === false) {
@@ -253,7 +254,7 @@ const Chat = () => {
             socket.on('new_message', async (data) => {
                 // If this is a message echo for the current user, try to reconcile with optimistic entry
                 if (data.sender_id === currentUser?.username) {
-                    if (isDev) {
+                    if (IS_DEV) {
                         console.debug('🔁 Received server echo for own message, attempting reconciliation');
                     }
 
@@ -263,9 +264,11 @@ const Chat = () => {
                             m.sender_id === currentUser?.username &&
                             typeof m._id === 'string' && m._id.startsWith('pending-') &&
                             // Correlate by unique crypto fields (signature preferred)
-                            (m.signature && m.signature === data.signature ||
-                             (m.nonce === data.nonce && m.tag === data.tag) ||
-                             m.encrypted_message === data.encrypted_message)
+                            (
+                                (m.signature && m.signature === data.signature) ||
+                                ((m.nonce === data.nonce) && (m.tag === data.tag)) ||
+                                (m.encrypted_message === data.encrypted_message)
+                            )
                         );
 
                         if (idx !== -1) {
@@ -284,7 +287,7 @@ const Chat = () => {
                             };
                             const copy = prev.slice();
                             copy[idx] = updated;
-                            if (isDev) {
+                            if (IS_DEV) {
                                 console.debug('✅ Reconciled optimistic message with server id:', { temp: optimistic._id, server: data._id });
                             }
                             return copy;
@@ -343,7 +346,7 @@ const Chat = () => {
 
             // Listen for message send confirmation
             socket.on('message_sent', (data) => {
-                if (isDev) {
+                if (IS_DEV) {
                     console.log('✅ Message sent successfully:', data);
                 }
                 message.success('Message delivered');
@@ -395,7 +398,7 @@ const Chat = () => {
     };
 
     const handleSendMessage = async () => {
-        if (isDev) {
+        if (IS_DEV) {
             console.log('🔄 Attempting to send message...');
             console.log('   Socket connected:', socket?.connected);
             console.log('   Selected user:', selectedUser?.username);
@@ -424,7 +427,7 @@ const Chat = () => {
         setNewMessage(''); // Clear input immediately for better UX
 
         try {
-            if (isDev) console.log('🧩 Preparing message (encrypt+sign+Kyber package)...');
+            if (IS_DEV) console.log('🧩 Preparing message (encrypt+sign+Kyber package)...');
 
             // New unified pipeline endpoint: encrypt -> sign -> Kyber package
             const prepared = await api.post('/prepare_message', {
@@ -448,11 +451,11 @@ const Chat = () => {
                 formatted_timestamp: prepared.data.formatted_timestamp
             };
 
-            if (isDev) {
+            if (IS_DEV) {
                 console.log('📤 Emitting packaged message via Socket.IO...');
             }
             socket.emit('send_message', messageData);
-            if (isDev) console.log('✅ Message emitted to server');
+            if (IS_DEV) console.log('✅ Message emitted to server');
 
             // Optimistically add to local messages (will be confirmed by server)
             // Optimistically add plaintext to UI (server will reconcile id on echo)
