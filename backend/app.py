@@ -8,6 +8,7 @@ import re
 import logging
 import sqlite3
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from flask_cors import CORS
 from functools import wraps
 
@@ -18,6 +19,21 @@ from crypto.quantum_service import QuantumCryptoService
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
+
+# Provide a portable background execution helper that prefers eventlet.tpool when available,
+# and falls back to a standard ThreadPoolExecutor otherwise.
+try:
+    # Some environments may not expose eventlet.tpool; guard access here
+    from eventlet import tpool as _eventlet_tpool  # type: ignore
+
+    def run_in_bg(func, *args, **kwargs):
+        return _eventlet_tpool.execute(func, *args, **kwargs)
+except Exception:
+    _bg_executor = ThreadPoolExecutor(max_workers=4)
+
+    def run_in_bg(func, *args, **kwargs):
+        future = _bg_executor.submit(func, *args, **kwargs)
+        return future.result()
 
 # Load environment variables from .env files when running locally
 print("Attempting to load .env file...")
@@ -1176,7 +1192,7 @@ def prepare_message():
         # 2) Sign ciphertext with sender's Dilithium key (offloaded to eventlet thread pool to avoid worker timeouts)
         ciphertext_bytes = base64.b64decode(enc['ciphertext'])
         try:
-            sig = eventlet.tpool.execute(crypto_service.sign_message, sender_id, ciphertext_bytes)
+            sig = run_in_bg(crypto_service.sign_message, sender_id, ciphertext_bytes)
         except Exception as tpool_err:
             logging.error(f"Signing (tpool) failed: {tpool_err}", exc_info=True)
             return jsonify({'error': f'Signing failed: {str(tpool_err)}'}), 400
@@ -1191,7 +1207,7 @@ def prepare_message():
             'signature': sig['signature']
         }
         try:
-            packaged = eventlet.tpool.execute(crypto_service.package_with_kyber, recipient_id, inner_payload)
+            packaged = run_in_bg(crypto_service.package_with_kyber, recipient_id, inner_payload)
         except Exception as tpool_err:
             logging.error(f"Kyber packaging (tpool) failed: {tpool_err}", exc_info=True)
             return jsonify({'error': 'Packaging failed'}), 400
