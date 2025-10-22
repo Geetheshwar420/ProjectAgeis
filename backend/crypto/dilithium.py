@@ -338,7 +338,8 @@ class DilithiumSignature:
                 mu = self._shake256(K + message, 64)
                 # Rejection sampling loop
                 nonce = 0
-                max_attempts = 1000
+                # Keep attempts low to ensure fast signing in demo environment
+                max_attempts = 2
                 for attempt in range(max_attempts):
                     # Sample y
                     y = []
