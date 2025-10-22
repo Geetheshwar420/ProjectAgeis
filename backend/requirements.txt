@@ -11,6 +11,7 @@ itsdangerous==2.2.0
 
 # WSGI server for production
 eventlet==0.36.1
+gunicorn==21.2.0
 
 # Utilities
 python-dotenv==1.0.0
