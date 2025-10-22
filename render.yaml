@@ -6,7 +6,7 @@ services:
     plan: starter
     branch: main
     buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && python run.py
+    startCommand: cd backend && gunicorn --worker-class eventlet -w 1 -b 0.0.0.0:$PORT app:app
     envVars:
       - key: FLASK_ENV
         value: production
@@ -23,5 +23,5 @@ services:
       - key: SOCKETIO_CORS_ALL
         value: false
       - key: PYTHON_VERSION
-        value: 3.12.0
+        value: 3.12.6
     healthCheckPath: /healthz

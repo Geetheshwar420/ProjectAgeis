@@ -1,23 +1,23 @@
 # Core Flask framework and extensions
-Flask==2.3.3
-Flask-Cors==4.0.0
-Flask-SocketIO==5.3.6
+Flask
+Flask-Cors
+Flask-SocketIO
 
 # Cryptography and security
-cryptography==45.0.6
-bcrypt==4.0.1
-passlib==1.7.4
-itsdangerous==2.2.0
+cryptography
+bcrypt
+passlib
+itsdangerous
 
 # WSGI server for production
-eventlet==0.36.1
-gunicorn==21.2.0
+eventlet
+gunicorn
 
 # Utilities
-python-dotenv==1.0.0
-email-validator==2.3.0
-Werkzeug==2.3.7
+python-dotenv
+email-validator
+Werkzeug
 
 # Database drivers and ORM
-psycopg2-binary==2.9.10
-SQLAlchemy==2.0.43
+psycopg2-binary
+SQLAlchemy

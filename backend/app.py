@@ -69,6 +69,14 @@ socketio = SocketIO(app, cors_allowed_origins=socketio_allowed_origins, logger=F
 # Instantiate crypto service
 crypto_service = QuantumCryptoService()
 
+# Simple health check for Render/infra
+@app.route('/healthz', methods=['GET'])
+def healthz():
+    return jsonify({
+        'status': 'ok',
+        'time': datetime.now(timezone.utc).isoformat()
+    }), 200
+
 # Simple session-based auth decorator
 def login_required(f):
     @wraps(f)
