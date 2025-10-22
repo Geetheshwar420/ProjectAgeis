@@ -1153,6 +1153,21 @@ def prepare_message():
         return jsonify({'error': 'Message must be a string'}), 400
 
     try:
+        # Ensure keypairs exist for sender and recipient (secrets are in-memory and may be lost after worker restarts)
+        try:
+            db = get_db()
+            from_username_list = [sender_id, recipient_id]
+            for uid in from_username_list:
+                if uid not in crypto_service.user_keypairs:
+                    user_row = User.find_by_username(db, uid)
+                    if not user_row:
+                        return jsonify({'error': f"User '{uid}' not found"}), 404
+                    print(f"⚠️ Regenerating keypairs for {uid} (secret keys are not persisted)")
+                    crypto_service.generate_user_keypairs(uid)
+        except Exception as ensure_keys_err:
+            logging.error(f"Failed ensuring user keypairs: {ensure_keys_err}", exc_info=True)
+            return jsonify({'error': 'Key setup failed'}), 400
+
         # 1) Encrypt with session key
         enc = crypto_service.encrypt_message(session_id, message.encode('utf-8'))
         if enc.get('status') == 'failed':
@@ -1164,7 +1179,7 @@ def prepare_message():
             sig = eventlet.tpool.execute(crypto_service.sign_message, sender_id, ciphertext_bytes)
         except Exception as tpool_err:
             logging.error(f"Signing (tpool) failed: {tpool_err}", exc_info=True)
-            return jsonify({'error': 'Signing failed'}), 400
+            return jsonify({'error': f'Signing failed: {str(tpool_err)}'}), 400
         if sig.get('status') == 'failed' or 'signature' not in sig:
             return jsonify({'error': sig.get('error', 'Signing failed')}), 400
 
