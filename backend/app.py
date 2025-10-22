@@ -238,7 +238,19 @@ init_app_database()
 app = create_app()
 
 # Configure session security based on environment
-is_production = os.getenv('FLASK_ENV') == 'production'
+# Check multiple indicators to determine if we're in production
+is_production = (
+    os.getenv('FLASK_ENV') == 'production' or 
+    os.getenv('RENDER') == 'true' or  # Render sets this automatically
+    os.getenv('APP_ENV') == 'production' or
+    'onrender.com' in os.getenv('RENDER_EXTERNAL_URL', '')
+)
+
+print(f"🔍 Environment detection:")
+print(f"   FLASK_ENV: {os.getenv('FLASK_ENV', 'not set')}")
+print(f"   RENDER: {os.getenv('RENDER', 'not set')}")
+print(f"   RENDER_EXTERNAL_URL: {os.getenv('RENDER_EXTERNAL_URL', 'not set')}")
+print(f"   → Detected as: {'PRODUCTION' if is_production else 'DEVELOPMENT'}")
 
 app.config['SESSION_COOKIE_SECURE'] = is_production  # True for HTTPS in production
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent XSS
@@ -354,26 +366,38 @@ def login_required(f):
 
 @app.route('/register', methods=['POST'])
 def register():
+    print(f"📝 Registration request received from {request.remote_addr}")
+    print(f"   Content-Type: {request.content_type}")
+    print(f"   Origin: {request.headers.get('Origin', 'not set')}")
+    
     data = request.get_json(silent=True) or {}
+    print(f"   Data received: {list(data.keys()) if data else 'empty'}")
+    
     username = data.get('username')
     password = data.get('password')
     email = data.get('email')
 
     if not isinstance(username, str) or not username.strip():
+        print(f"   ❌ Validation failed: Invalid username")
         return jsonify({'error': 'Valid username is required'}), 400
     if not isinstance(password, str) or len(password) < 6:
+        print(f"   ❌ Validation failed: Password too short")
         return jsonify({'error': 'Password must be at least 6 characters'}), 400
     if not isinstance(email, str) or '@' not in email:
+        print(f"   ❌ Validation failed: Invalid email")
         return jsonify({'error': 'Valid email is required'}), 400
 
     db = get_db()
     # Check uniqueness
     if User.find_by_username(db, username):
+        print(f"   ❌ Username '{username}' already exists")
         return jsonify({'error': 'Username already exists'}), 400
     if User.find_by_email(db, email):
+        print(f"   ❌ Email '{email}' already in use")
         return jsonify({'error': 'Email already in use'}), 400
 
     try:
+        print(f"   💾 Creating user: {username}")
         user = User(username=username, password=password, email=email)
         user_id = user.save(db)
         # Set session
@@ -384,9 +408,11 @@ def register():
         # Store user's password as seed for deterministic key generation
         crypto_service.set_user_seed(username, password)
         
+        print(f"   ✅ User registered successfully: {username} (ID: {user_id})")
         return jsonify({'message': 'Registration successful', 'user': {'username': username, 'email': email}}), 201
     except Exception as e:
         logging.error(f"Registration failed: {e}", exc_info=True)
+        print(f"   ❌ Registration exception: {e}")
         return jsonify({'error': 'Registration failed'}), 500
 
 @app.route('/login', methods=['POST'])
