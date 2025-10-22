@@ -270,19 +270,37 @@ else:
 trusted_origins_env = os.getenv('TRUSTED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
 trusted_origins = [origin.strip() for origin in trusted_origins_env.split(',') if origin.strip()]
 
+print(f"🌐 CORS Configuration:")
+print(f"   TRUSTED_ORIGINS env: {trusted_origins_env}")
+print(f"   Parsed origins: {trusted_origins}")
+
 # In development, also allow common private LAN origins on port 3000
 private_lan_regex = None
 if not is_production:
     private_lan_regex = re.compile(r'^http://((localhost)|(127\.0\.0\.1)|(10\..*)|(192\.168\..*)|(172\.(1[6-9]|2\d|3[0-1])\..*)):3000$')
     trusted_origins.append(private_lan_regex)
+    print(f"   Added LAN regex pattern for development")
 
 # Add regex pattern for Vercel preview deployments if ALLOW_VERCEL_PREVIEWS is set
 if os.getenv('ALLOW_VERCEL_PREVIEWS', 'false').lower() == 'true':
     vercel_preview_regex = re.compile(r'^https://[a-zA-Z0-9-]+-vercel\.app$')
     trusted_origins.append(vercel_preview_regex)
+    print(f"   Added Vercel preview regex pattern")
 
-# Enable CORS for HTTP routes
-CORS(app, resources={r"/*": {"origins": trusted_origins}}, supports_credentials=True)
+print(f"   Total origins configured: {len(trusted_origins)}")
+
+# Enable CORS for HTTP routes with explicit configuration
+CORS(app, 
+     resources={r"/*": {
+         "origins": trusted_origins,
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Type"],
+         "max_age": 3600
+     }}, 
+     supports_credentials=True)
+
+print("✅ CORS enabled with credential support")
 
 # Initialize Socket.IO with CORS; filter out regex for this parameter
 socketio_allowed_origins = [o for o in trusted_origins if isinstance(o, str)] or "*"
@@ -290,6 +308,32 @@ socketio = SocketIO(app, cors_allowed_origins=socketio_allowed_origins, logger=F
 
 # Instantiate crypto service
 crypto_service = QuantumCryptoService()
+
+# Add explicit CORS headers to all responses as a fallback
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin:
+        # Check if origin is allowed
+        allowed = False
+        for trusted_origin in trusted_origins:
+            if isinstance(trusted_origin, str):
+                if origin == trusted_origin:
+                    allowed = True
+                    break
+            elif hasattr(trusted_origin, 'match'):  # Regex pattern
+                if trusted_origin.match(origin):
+                    allowed = True
+                    break
+        
+        if allowed:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            response.headers['Access-Control-Max-Age'] = '3600'
+    
+    return response
 
 # Simple health check for Render/infra
 @app.route('/healthz', methods=['GET'])
