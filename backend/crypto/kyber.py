@@ -87,26 +87,31 @@ class KyberKEM:
         # Ensure input is always self.n elements
         if poly.shape[0] != self.n:
             poly = np.resize(poly, self.n)
-        result = np.copy(poly)
+        result = np.copy(poly).astype(np.int64)  # Use int64 to prevent overflow
         n = self.n
-        transformed = np.zeros_like(result)
+        transformed = np.zeros(n, dtype=np.int64)  # Use int64 explicitly
         for k in range(n):
             for j in range(n):
-                transformed[k] = (transformed[k] + result[j] * pow(3, (k * j), self.q)) % self.q
-        return transformed
+                # Perform operations with int64 to prevent overflow
+                term = (int(result[j]) * pow(3, (k * j), self.q)) % self.q
+                transformed[k] = (transformed[k] + term) % self.q
+        return transformed.astype(np.int32)  # Convert back to int32 for consistency
 
     def _intt(self, poly: np.ndarray) -> np.ndarray:
         # Ensure input is always self.n elements
         if poly.shape[0] != self.n:
             poly = np.resize(poly, self.n)
-        result = np.copy(poly)
+        result = np.copy(poly).astype(np.int64)  # Use int64 to prevent overflow
         n = self.n
-        transformed = np.zeros_like(result)
+        transformed = np.zeros(n, dtype=np.int64)  # Use int64 explicitly
+        n_inv = pow(n, -1, self.q)  # Pre-compute inverse of n
         for k in range(n):
             for j in range(n):
-                transformed[k] = (transformed[k] + result[j] * pow(3, (-k * j), self.q)) % self.q
-            transformed[k] = (transformed[k] * pow(n, -1, self.q)) % self.q
-        return transformed
+                # Perform operations with int64 to prevent overflow
+                term = (int(result[j]) * pow(3, (-k * j), self.q)) % self.q
+                transformed[k] = (transformed[k] + term) % self.q
+            transformed[k] = (transformed[k] * n_inv) % self.q
+        return transformed.astype(np.int32)  # Convert back to int32 for consistency
     
     def _poly_add(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
         """Add two polynomials modulo q"""
@@ -142,7 +147,10 @@ class KyberKEM:
         # Simplified encoding
         byte_array = []
         for coeff in poly:
-            byte_array.extend(int(coeff).to_bytes(2, 'little'))
+            # Ensure coefficient is within signed 16-bit range for encoding
+            # and handle negative numbers correctly.
+            val = int(coeff)
+            byte_array.extend(val.to_bytes(2, 'little', signed=True))
         return bytes(byte_array)
     
     def _decode_polynomial(self, data: bytes, bits: int) -> np.ndarray:
@@ -150,7 +158,9 @@ class KyberKEM:
         poly = np.zeros(self.n, dtype=np.int16)
         num_coeffs = len(data) // 2
         for i in range(min(self.n, num_coeffs)):
-            poly[i] = int.from_bytes(data[i*2:(i+1)*2], 'little')
+            # Decode as a signed 16-bit integer. This is the key fix.
+            poly[i] = int.from_bytes(data[i*2:(i+1)*2], 'little', signed=True)
+
         # If the decoded polynomial is shorter than self.n, pad with zeros
         if num_coeffs < self.n:
             poly[num_coeffs:] = 0
@@ -297,10 +307,12 @@ class KyberKEM:
 
         c2_data = self._encode_polynomial(self._compress(v, self.KYBER_DV), self.KYBER_DV)
 
-        # Store m in ciphertext for decapsulation
-        ciphertext = c1_data + c2_data + m
+        # Finalize the ciphertext by combining its components.
+        # The random message 'm' is NOT part of the ciphertext.
+        ciphertext = c1_data + c2_data
 
-        # Derive shared secret
+        # Derive shared secret from the random message 'm' and a hash of the final ciphertext.
+        # This ensures the hash is computed on the exact data that will be transmitted.
         shared_secret = hashlib.sha3_256(m + hashlib.sha3_256(ciphertext).digest()).digest()
 
         return ciphertext, shared_secret
@@ -327,27 +339,59 @@ class KyberKEM:
         # Parse ciphertext (use actual serialized sizes: 2 bytes per coefficient)
         c1_size = self.k * self.n * 2
         c2_size = self.n * 2
+        # Correctly slice the ciphertext into its components first
         c1_data = ciphertext[:c1_size]
-        c2_data = ciphertext[c1_size:c1_size + c2_size]
-        m = ciphertext[c1_size + c2_size:c1_size + c2_size + 32]
-
-        # Decode u vector (each polynomial encoded with 2 bytes/coeff)
+        c2_data = ciphertext[c1_size : c1_size + c2_size]
+        
+        # Decode u vector from c1_data
         u = []
         offset = 0
         for i in range(self.k):
             poly_size = self.n * 2
             encoded_poly = self._decode_polynomial(c1_data[offset:offset + poly_size], self.KYBER_DU)
-            # Note: In this simplified implementation, encode/decode uses 2 bytes per coeff directly
-            # so decompression is a no-op equivalent; keep call for interface consistency
             u_i = self._decompress(encoded_poly, self.KYBER_DU)
             u.append(u_i)
             offset += poly_size
-
+        
         # Decode v
         encoded_v = self._decode_polynomial(c2_data, self.KYBER_DV)
         v = self._decompress(encoded_v, self.KYBER_DV)
 
-        # Use m from ciphertext for shared secret derivation
+        # This is the core of Kyber decapsulation.
+        s_transpose_u = np.zeros(self.n, dtype=np.int16)
+        for i in range(self.k):
+            s_transpose_u = self._poly_add(s_transpose_u, self._poly_mul_ntt(s[i], u[i]))
+        
+        m_prime_poly = self._poly_sub(v, s_transpose_u)
+
+        # Decode m' from polynomial to bytes.
+        # Round to nearest multiple of q/2 to extract bits
+        m_prime_bits = []
+        threshold = self.q // 4  # Midpoint for deciding bit value
+        
+        for coeff in m_prime_poly:
+            # Reduce modulo q to get value in [0, q)
+            val = int(coeff) % self.q
+            # If value is closer to q/2 than to 0 or q, bit is 1
+            # Distance to 0: val
+            # Distance to q/2: |val - q/2|
+            dist_to_0 = min(val, self.q - val)  # Account for wrap-around
+            dist_to_half = abs(val - self.q // 2)
+            
+            # Bit is 1 if closer to q/2, else 0
+            m_prime_bits.append('1' if dist_to_half < dist_to_0 else '0')
+
+        # Convert bit string to bytes
+        # Take first 256 bits (32 bytes) for the message
+        m_bit_string = "".join(m_prime_bits[:256])
+        # Pad with zeros if needed
+        if len(m_bit_string) < 256:
+            m_bit_string = m_bit_string.ljust(256, '0')
+        
+        # Convert to bytes
+        m = int(m_bit_string, 2).to_bytes(32, 'big')
+
+        # Derive shared secret using same method as encapsulation
         shared_secret = hashlib.sha3_256(m + hashlib.sha3_256(ciphertext).digest()).digest()
 
         return shared_secret
