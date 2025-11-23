@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Performance Test Suite for Quantum Cryptography Operations
+Performance Benchmark Suite for Quantum Cryptography Operations
 
 This script demonstrates the performance improvements achieved through
 optimization of the encryption and decryption procedures.
 
-Run with: python test_performance.py
+Run with: python3 performance_benchmark.py
 """
 
 import time

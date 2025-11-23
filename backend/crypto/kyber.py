@@ -129,6 +129,7 @@ class KyberKEM:
         
         # Use NumPy's FFT which is O(n log n) and highly optimized
         # This is a practical optimization for the educational crypto implementation
+        # complex128 provides sufficient precision for the modular arithmetic approximation
         result = np.fft.fft(poly.astype(np.complex128))
         
         # Convert back to modular arithmetic
