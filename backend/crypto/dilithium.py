@@ -1,6 +1,17 @@
 """
 Crystal-Dilithium Digital Signature Scheme Implementation
-This module implements the Dilithium post-quantum digital signature algorithm
+
+This module implements the Dilithium post-quantum digital signature algorithm.
+
+⚠️  EDUCATIONAL IMPLEMENTATION NOTICE:
+This implementation uses NumPy FFT for NTT operations to demonstrate
+performance optimization techniques while maintaining educational clarity.
+
+NOT SUITABLE FOR PRODUCTION USE. For production cryptography:
+- Use vetted libraries like liboqs, pqcrypto, or PQClean
+- Implement proper NTT with finite field arithmetic
+- Follow NIST PQC standardization guidelines
+- Conduct security audits
 """
 import os
 import hashlib
@@ -64,8 +75,21 @@ class DilithiumSignature:
         self._init_ntt_tables()
     
     def _init_ntt_tables(self):
-        """Initialize precomputed tables for fast NTT operations"""
-        # Minimal initialization for optimized operations
+        """
+        Initialize optimization tables for fast NTT operations
+        
+        NOTE: This is a placeholder for future NTT optimizations.
+        Current implementation uses NumPy FFT instead of proper NTT with
+        precomputed twiddle factors. A production implementation would
+        precompute and cache:
+        - Powers of primitive root of unity mod q
+        - Bit-reversal permutation tables
+        - Barrett reduction constants
+        
+        For this educational implementation, we prioritize simplicity and
+        demonstration of performance improvements.
+        """
+        # Minimal initialization for current FFT-based approach
         self._ntt_cache = {}
         
     def _shake256(self, data: bytes, output_length: int) -> bytes:

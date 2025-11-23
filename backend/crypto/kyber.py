@@ -1,6 +1,18 @@
 """
 Crystal-Kyber Key Encapsulation Mechanism (KEM) Implementation
-This module implements the Kyber post-quantum cryptographic algorithm
+
+This module implements the Kyber post-quantum cryptographic algorithm.
+
+⚠️  EDUCATIONAL IMPLEMENTATION NOTICE:
+This implementation prioritizes performance demonstration and educational value
+over cryptographic correctness. It uses NumPy FFT instead of proper Number
+Theoretic Transform (NTT) for significant performance gains.
+
+NOT SUITABLE FOR PRODUCTION USE. For production cryptography:
+- Use vetted libraries like liboqs, pqcrypto, or PQClean
+- Implement proper NTT with finite field arithmetic
+- Follow NIST PQC standardization guidelines
+- Conduct security audits
 """
 import os
 import hashlib
@@ -96,8 +108,20 @@ class KyberKEM:
     
     def _ntt(self, poly: np.ndarray) -> np.ndarray:
         """
-        Optimized NTT using vectorized NumPy operations - O(n log n) equivalent
-        Replaces O(n²) loops with efficient matrix operations
+        Optimized NTT using vectorized NumPy FFT - O(n log n) equivalent
+        
+        NOTE: This is an EDUCATIONAL IMPLEMENTATION that prioritizes performance
+        demonstration over cryptographic correctness. It uses standard FFT instead
+        of proper Number Theoretic Transform (NTT) to achieve dramatic speedup.
+        
+        ⚠️  WARNING: NOT suitable for production cryptography use.
+        A proper NTT implementation would operate in finite field Zq with
+        modular arithmetic, not complex numbers.
+        
+        For production use, implement proper Cooley-Tukey NTT with:
+        - Bit-reversal permutation
+        - Twiddle factors from primitive roots of unity mod q
+        - Barrett reduction for modular multiplication
         """
         # Ensure input is always self.n elements
         if poly.shape[0] != self.n:
@@ -114,8 +138,20 @@ class KyberKEM:
 
     def _intt(self, poly: np.ndarray) -> np.ndarray:
         """
-        Optimized inverse NTT using vectorized NumPy operations - O(n log n) equivalent
-        Replaces O(n²) loops with efficient matrix operations
+        Optimized inverse NTT using vectorized NumPy IFFT - O(n log n) equivalent
+        
+        NOTE: This is an EDUCATIONAL IMPLEMENTATION that prioritizes performance
+        demonstration over cryptographic correctness. It uses standard IFFT instead
+        of proper inverse Number Theoretic Transform (INTT).
+        
+        ⚠️  WARNING: NOT suitable for production cryptography use.
+        A proper INTT implementation would use Gentleman-Sande butterfly algorithm
+        with modular arithmetic in finite field Zq.
+        
+        For production use, implement proper inverse NTT with:
+        - Inverse twiddle factors
+        - Montgomery multiplication for efficiency
+        - Proper normalization by n^(-1) mod q
         """
         # Ensure input is always self.n elements
         if poly.shape[0] != self.n:
