@@ -60,6 +60,14 @@ class DilithiumSignature:
         self.q = self.DILITHIUM_Q
         self.gamma2 = (self.q - 1) // 88
         
+        # Initialize optimization tables
+        self._init_ntt_tables()
+    
+    def _init_ntt_tables(self):
+        """Initialize precomputed tables for fast NTT operations"""
+        # Minimal initialization for optimized operations
+        self._ntt_cache = {}
+        
     def _shake256(self, data: bytes, output_length: int) -> bytes:
         """SHAKE256 extendable output function"""
         # Simplified implementation using SHA3-256 iteratively
