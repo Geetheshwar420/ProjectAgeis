@@ -47,10 +47,36 @@ class KyberKEM:
         self.n = self.KYBER_N
         self.q = self.KYBER_Q
         
+        # OPTIMIZATION: Precompute twiddle factors for NTT
+        self._twiddle_factors = self._precompute_twiddle_factors()
+        self._inv_twiddle_factors = self._precompute_inv_twiddle_factors()
+        self._n_inv = pow(self.n, -1, self.q)
+        
+        # OPTIMIZATION: Cache for polynomial operations
+        self._poly_cache = {}
+        
+    def _precompute_twiddle_factors(self) -> np.ndarray:
+        """Precompute twiddle factors for NTT - O(n) computation done once"""
+        factors = np.zeros(self.n, dtype=np.int64)
+        for k in range(self.n):
+            factors[k] = pow(3, k, self.q)
+        return factors
+    
+    def _precompute_inv_twiddle_factors(self) -> np.ndarray:
+        """Precompute inverse twiddle factors for INTT"""
+        factors = np.zeros(self.n, dtype=np.int64)
+        for k in range(self.n):
+            factors[k] = pow(3, -k, self.q)
+        return factors
+    
     def _shake256(self, data: bytes, output_length: int) -> bytes:
-        """SHAKE256 extendable output function"""
+        """SHAKE256 extendable output function with caching"""
+        # OPTIMIZATION: Cache hash results for repeated inputs
+        cache_key = (data, output_length)
+        if cache_key in self._poly_cache:
+            return self._poly_cache[cache_key]
+        
         # Simplified implementation using SHA3-256 iteratively
-        # Real implementation would use actual SHAKE256
         result = b''
         counter = 0
         while len(result) < output_length:
@@ -59,7 +85,12 @@ class KyberKEM:
             hasher.update(counter.to_bytes(4, 'little'))
             result += hasher.digest()
             counter += 1
-        return result[:output_length]
+        result = result[:output_length]
+        
+        # Cache if not too large
+        if len(self._poly_cache) < 1000:
+            self._poly_cache[cache_key] = result
+        return result
     
     def _prf(self, seed: bytes, nonce: int, output_length: int) -> bytes:
         """Pseudorandom function"""
@@ -84,87 +115,103 @@ class KyberKEM:
         return samples
     
     def _ntt(self, poly: np.ndarray) -> np.ndarray:
+        """OPTIMIZED: Fast NTT using precomputed twiddle factors and vectorization"""
         # Ensure input is always self.n elements
         if poly.shape[0] != self.n:
             poly = np.resize(poly, self.n)
-        result = np.copy(poly).astype(np.int64)  # Use int64 to prevent overflow
-        n = self.n
-        transformed = np.zeros(n, dtype=np.int64)  # Use int64 explicitly
-        for k in range(n):
-            for j in range(n):
-                # Perform operations with int64 to prevent overflow
-                term = (int(result[j]) * pow(3, (k * j), self.q)) % self.q
-                transformed[k] = (transformed[k] + term) % self.q
-        return transformed.astype(np.int32)  # Convert back to int32 for consistency
+        
+        result = poly.astype(np.int64)
+        transformed = np.zeros(self.n, dtype=np.int64)
+        
+        # OPTIMIZATION: Vectorized computation using precomputed twiddle factors
+        for k in range(self.n):
+            # Vectorized multiplication and modulo
+            twiddle_powers = np.power(self._twiddle_factors, k, dtype=np.int64) % self.q
+            terms = (result * twiddle_powers) % self.q
+            transformed[k] = np.sum(terms) % self.q
+        
+        return transformed.astype(np.int32)
 
     def _intt(self, poly: np.ndarray) -> np.ndarray:
+        """OPTIMIZED: Fast inverse NTT using precomputed twiddle factors"""
         # Ensure input is always self.n elements
         if poly.shape[0] != self.n:
             poly = np.resize(poly, self.n)
-        result = np.copy(poly).astype(np.int64)  # Use int64 to prevent overflow
-        n = self.n
-        transformed = np.zeros(n, dtype=np.int64)  # Use int64 explicitly
-        n_inv = pow(n, -1, self.q)  # Pre-compute inverse of n
-        for k in range(n):
-            for j in range(n):
-                # Perform operations with int64 to prevent overflow
-                term = (int(result[j]) * pow(3, (-k * j), self.q)) % self.q
-                transformed[k] = (transformed[k] + term) % self.q
-            transformed[k] = (transformed[k] * n_inv) % self.q
-        return transformed.astype(np.int32)  # Convert back to int32 for consistency
+        
+        result = poly.astype(np.int64)
+        transformed = np.zeros(self.n, dtype=np.int64)
+        
+        # OPTIMIZATION: Vectorized computation using precomputed inverse twiddle factors
+        for k in range(self.n):
+            # Vectorized multiplication and modulo
+            twiddle_powers = np.power(self._inv_twiddle_factors, k, dtype=np.int64) % self.q
+            terms = (result * twiddle_powers) % self.q
+            transformed[k] = (np.sum(terms) * self._n_inv) % self.q
+        
+        return transformed.astype(np.int32)
     
     def _poly_add(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        """Add two polynomials modulo q"""
-        return (a + b) % self.q
+        """OPTIMIZED: Vectorized polynomial addition"""
+        return ((a.astype(np.int32) + b.astype(np.int32)) % self.q).astype(np.int16)
     
     def _poly_sub(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        """Subtract two polynomials modulo q"""
-        return (a - b) % self.q
+        """OPTIMIZED: Vectorized polynomial subtraction"""
+        return ((a.astype(np.int32) - b.astype(np.int32)) % self.q).astype(np.int16)
     
     def _poly_mul_ntt(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        """Multiply two polynomials using NTT"""
-        a_ntt = self._ntt(a)
-        b_ntt = self._ntt(b)
-        result_ntt = (a_ntt * b_ntt) % self.q
-        return self._intt(result_ntt)
+        """OPTIMIZED: Fast polynomial multiplication using NTT with caching"""
+        # Cache NTT results for frequently used polynomials
+        a_key = hash(a.tobytes())
+        b_key = hash(b.tobytes())
+        
+        if a_key in self._poly_cache:
+            a_ntt = self._poly_cache[a_key]
+        else:
+            a_ntt = self._ntt(a)
+            if len(self._poly_cache) < 500:
+                self._poly_cache[a_key] = a_ntt
+        
+        if b_key in self._poly_cache:
+            b_ntt = self._poly_cache[b_key]
+        else:
+            b_ntt = self._ntt(b)
+            if len(self._poly_cache) < 500:
+                self._poly_cache[b_key] = b_ntt
+        
+        result_ntt = (a_ntt.astype(np.int64) * b_ntt.astype(np.int64)) % self.q
+        return self._intt(result_ntt.astype(np.int32))
     
     def _compress(self, poly: np.ndarray, d: int) -> np.ndarray:
-        out = np.round((poly * (2**d)) / self.q).astype(np.int16) % (2**d)
-        # Ensure output is always self.n elements
-        if out.shape[0] != self.n:
-            out = np.resize(out, self.n)
-        return out
+        """OPTIMIZED: Vectorized compression"""
+        # Use numpy vectorized operations throughout
+        compressed = np.round((poly.astype(np.float32) * (2**d)) / self.q).astype(np.int16) % (2**d)
+        if compressed.shape[0] != self.n:
+            compressed = np.resize(compressed, self.n)
+        return compressed
     
     def _decompress(self, poly: np.ndarray, d: int) -> np.ndarray:
-        out = np.round((poly * self.q) / (2**d)).astype(np.int16) % self.q
-        # Ensure output is always self.n elements
-        if out.shape[0] != self.n:
-            out = np.resize(out, self.n)
-        return out
+        """OPTIMIZED: Vectorized decompression"""
+        # Use numpy vectorized operations throughout
+        decompressed = np.round((poly.astype(np.float32) * self.q) / (2**d)).astype(np.int16) % self.q
+        if decompressed.shape[0] != self.n:
+            decompressed = np.resize(decompressed, self.n)
+        return decompressed
     
     def _encode_polynomial(self, poly: np.ndarray, bits: int) -> bytes:
-        """Encode polynomial to bytes"""
-        # Simplified encoding
-        byte_array = []
-        for coeff in poly:
-            # Ensure coefficient is within signed 16-bit range for encoding
-            # and handle negative numbers correctly.
-            val = int(coeff)
-            byte_array.extend(val.to_bytes(2, 'little', signed=True))
-        return bytes(byte_array)
+        """OPTIMIZED: Vectorized polynomial encoding"""
+        # Ensure coefficients are in valid range
+        poly_int = poly.astype(np.int16)
+        # Use numpy's tobytes for fast conversion
+        return poly_int.tobytes()
     
     def _decode_polynomial(self, data: bytes, bits: int) -> np.ndarray:
-        """Decode bytes to polynomial"""
-        poly = np.zeros(self.n, dtype=np.int16)
-        num_coeffs = len(data) // 2
-        for i in range(min(self.n, num_coeffs)):
-            # Decode as a signed 16-bit integer. This is the key fix.
-            poly[i] = int.from_bytes(data[i*2:(i+1)*2], 'little', signed=True)
-
-        # If the decoded polynomial is shorter than self.n, pad with zeros
-        if num_coeffs < self.n:
-            poly[num_coeffs:] = 0
-        return poly
+        """OPTIMIZED: Vectorized polynomial decoding"""
+        # Fast conversion using numpy frombuffer
+        poly = np.frombuffer(data, dtype=np.int16, count=self.n)
+        # Pad if needed
+        if len(poly) < self.n:
+            poly = np.pad(poly, (0, self.n - len(poly)), 'constant')
+        return poly[:self.n]
     
     def generate_keypair(self) -> Tuple[bytes, bytes]:
         # Generate random seed

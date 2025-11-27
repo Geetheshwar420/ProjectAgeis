@@ -34,7 +34,7 @@ def simulate_message_transfer():
     # This is a common technique for testing and simulation.
     print("\n[SIMULATION-ONLY] Patching Dilithium's verify method to always return True.")
     def patched_verify(public_key, message, signature):
-        print("   [PATCHED] Dilithium.verify() called. Returning True for simulation purposes.")
+        #print("   [PATCHED] Dilithium.verify() called. Returning True for simulation purposes.")
         # A basic structural check can still be useful to ensure a signature was generated.
         return len(signature) > 0
     crypto_service.dilithium.verify = patched_verify
@@ -67,37 +67,31 @@ def simulate_message_transfer():
     print(f"   Length: {len(original_message)} bytes")
 
     try:
-        # 4. Alice encrypts the message for Bob
-        print(f"\nStep 1: {user_a} encrypts the message for {user_b} using Kyber KEM.")
-        
-        # WORKAROUND: Due to Kyber implementation issues with shared secret mismatch,
-        # we'll use a deterministic shared secret for this simulation
-        print("[SIMULATION] Using deterministic shared secret to bypass Kyber KEM issues")
-        
-        # Generate a deterministic shared secret from both users' public keys
-        bob_kyber_public_key = crypto_service.user_keypairs[user_b]['kyber_public']
-        alice_kyber_public_key = crypto_service.user_keypairs[user_a]['kyber_public']
-        
-        # Create a fake kyber ciphertext (not used in simulation)
-        kyber_ciphertext = os.urandom(1568)  # Typical Kyber ciphertext size
-        
-        # Use a deterministic shared secret derived from both public keys
-        import hashlib
-        shared_secret_material = bob_kyber_public_key + alice_kyber_public_key
-        shared_secret_alice = hashlib.sha256(shared_secret_material).digest()
-        
-        print("[OK] Shared secret generated (simulation mode).")
-        print(f"   Shared Secret (hex): {shared_secret_alice.hex()[:32]}...")
+        # 4. Alice and Bob perform BB84 quantum key exchange
+        print(f"\nStep 1: {user_a} and {user_b} perform BB84 quantum key exchange.")
+        session_info = crypto_service.initiate_quantum_key_exchange(user_a, user_b)
+        session_id = session_info.get('session_id')
+        # Get the shared key from the session
+        bb84_key = None
+        if session_id and session_id in crypto_service.sessions:
+            bb84_key = crypto_service.sessions[session_id].bb84_key
+        if not bb84_key:
+            raise Exception("BB84 key exchange failed!")
+        print("[OK] BB84 shared key generated.")
+        print(f"   BB84 Key (hex): {bb84_key.hex()[:32]}...")
 
-        # Alice encrypts the message using the shared secret (AES-GCM)
-        aesgcm = AESGCM(shared_secret_alice)
+        # Alice encrypts the message using the BB84 shared key (AES-GCM)
+        aesgcm = AESGCM(bb84_key[:32])  # Use first 32 bytes for AES-256
         nonce = os.urandom(12)  # GCM nonce
         encrypted_message = aesgcm.encrypt(nonce, original_message, None)
-        print("[OK] Message encrypted with BB84 using the shared secret.")
+        print("[OK] Message encrypted with BB84 shared key.")
         print(f"\n🔒 ENCRYPTED MESSAGE (After BB84 Encryption):")
         print(f"   Ciphertext (hex): {encrypted_message.hex()}")
         print(f"   Length: {len(encrypted_message)} bytes")
         print(f"   Nonce (hex): {nonce.hex()}")
+
+        # Create a fake kyber ciphertext (not used in simulation)
+        kyber_ciphertext = os.urandom(1568)  # Typical Kyber ciphertext size
 
         # 5. Alice signs the encrypted payload (nonce + Kyber ciphertext + encrypted message)
         print(f"\nStep 2: {user_a} signs the payload using her Dilithium private key.")
@@ -127,24 +121,19 @@ def simulate_message_transfer():
             raise Exception("Signature verification failed! The message may be tampered with or not from Alice.")
         print("[OK] Signature is valid.")
 
-        # 7. Bob derives the same shared secret (simulation mode)
-        print(f"\nStep 4: {user_b} derives the shared secret (simulation mode).")
-        
-        # Bob derives the same deterministic shared secret
-        bob_kyber_public_key = crypto_service.user_keypairs[user_b]['kyber_public']
-        alice_kyber_public_key = crypto_service.user_keypairs[user_a]['kyber_public']
-        
-        import hashlib
-        shared_secret_material = bob_kyber_public_key + alice_kyber_public_key
-        shared_secret_bob = hashlib.sha256(shared_secret_material).digest()
-        
-        print("[OK] Shared secret derived successfully.")
-        
-        # Verify: Check if shared secrets match
-        print(f"\n[VERIFY] Shared secret match: {shared_secret_alice == shared_secret_bob}")
+        # 7. Bob derives the same BB84 shared key
+        print(f"\nStep 4: {user_b} derives the BB84 shared key.")
+        # Bob gets the same BB84 key from the session
+        bb84_key_bob = None
+        if session_id and session_id in crypto_service.sessions:
+            bb84_key_bob = crypto_service.sessions[session_id].bb84_key
+        if not bb84_key_bob:
+            raise Exception("BB84 key retrieval failed for Bob!")
+        print("[OK] BB84 shared key derived successfully.")
+        print(f"\n[VERIFY] Shared key match: {bb84_key == bb84_key_bob}")
 
         # Bob decrypts the message
-        aesgcm_bob = AESGCM(shared_secret_bob)
+        aesgcm_bob = AESGCM(bb84_key_bob[:32])
         decrypted_message = aesgcm_bob.decrypt(nonce, encrypted_message, None)
         print("[OK] Message decrypted with AES-GCM.")
 

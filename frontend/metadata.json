@@ -1,0 +1,8 @@
+{
+  "name": "AGES - Secure Messaging",
+  "description": "A next-generation, end-to-end encrypted messaging platform featuring glassmorphism design, real-time chat capabilities, and a comprehensive contact management system.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

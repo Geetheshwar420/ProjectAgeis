@@ -1,5 +1,78 @@
-/docs/
-*.log
-*.bak
-*.tmp
+# Root .gitignore for Messaging App
+
+# Documentation (if you want to keep docs private)
+# /docs/
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor
+.vscode/
+.idea/
 *.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+.cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Video recordings (from testing)
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+
+# Database files (if using SQLite locally)
+*.db
+*.sqlite
+*.sqlite3
+
+# Compiled files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage/
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+docs/
+New folder/

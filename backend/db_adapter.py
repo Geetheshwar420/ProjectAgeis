@@ -60,12 +60,13 @@ class DatabaseAdapter:
         self.db_type = self._detect_db_type()
         self.connection = None
         self._lock = threading.Lock()  # Protect SQLite connection access across threads
+        self._fallback_attempted = False  # Track if we've tried fallback
         
         print(f"🗄️  Database: {self.db_type.upper()}")
         if self.db_type == 'sqlite':
             print(f"   Path: {self._get_sqlite_path()}")
         else:
-            print(f"   Host: {self._get_postgres_host()}")
+            print(f"   Host: {self._get_postgres_host()} (will fallback to SQLite if unavailable)")
     
     def _get_default_connection_string(self):
         """Get default connection string from environment or use SQLite"""
@@ -105,7 +106,7 @@ class DatabaseAdapter:
     
     def connect(self):
         """
-        Establish database connection.
+        Establish database connection with automatic fallback to SQLite.
         
         Thread Safety:
             SQLite connections are created with check_same_thread=False to allow
@@ -115,7 +116,21 @@ class DatabaseAdapter:
             self.connection = sqlite3.connect(self._get_sqlite_path(), check_same_thread=False)
             self.connection.row_factory = sqlite3.Row
         else:  # postgresql
-            self.connection = psycopg2.connect(self.connection_string)
+            try:
+                self.connection = psycopg2.connect(self.connection_string)
+                print("✅ Connected to PostgreSQL database")
+            except Exception as e:
+                print(f"⚠️  PostgreSQL connection failed: {e}")
+                print("🔄 Falling back to SQLite database...")
+                # Fall back to SQLite
+                sqlite_path = os.getenv('SQLITE_DATABASE_PATH', 'messaging_app.db')
+                if not os.path.isabs(sqlite_path):
+                    sqlite_path = os.path.join(os.path.dirname(__file__), sqlite_path)
+                self.connection_string = f'sqlite:///{sqlite_path}'
+                self.db_type = 'sqlite'
+                self.connection = sqlite3.connect(sqlite_path, check_same_thread=False)
+                self.connection.row_factory = sqlite3.Row
+                print(f"✅ Using SQLite: {sqlite_path}")
         
         return self.connection
     
