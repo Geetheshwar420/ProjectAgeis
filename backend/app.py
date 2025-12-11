@@ -287,13 +287,13 @@ def init_app_database():
                 print(f"⚠️  Schema backfill skipped: {schema_err}")
                 
     except Exception as e:
-        print(f"❌ Error initializing database: {e}")
+        print(f"ERROR: Failed to initialize database: {e}")
         import traceback
         traceback.print_exc()
         raise
 
 print("\n" + "="*60)
-print("🚀 Starting Quantum Secure Messaging Backend")
+print("Starting Quantum Secure Messaging Backend")
 print("="*60 + "\n")
 
 # Configure session security based on environment

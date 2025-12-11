@@ -60,8 +60,30 @@ class DatabaseAdapter:
         Raises exception if connection fails (no fallback).
         """
         try:
-            self.connection = psycopg2.connect(self.connection_string)
+            self.connection = psycopg2.connect(self.connection_string, connect_timeout=10)
             return self.connection
+        except psycopg2.OperationalError as e:
+            error_str = str(e)
+            if 'codeProxyRefusedConnection' in error_str:
+                raise ConnectionError(
+                    f"CockroachDB proxy refused connection. Possible causes:\n"
+                    f"  1. Invalid username or password\n"
+                    f"  2. Cluster is paused - resume it in CockroachDB dashboard\n"
+                    f"  3. Invalid cluster ID or connection string\n"
+                    f"Original error: {e}"
+                ) from e
+            elif 'connection refused' in error_str.lower():
+                raise ConnectionError(
+                    f"Connection refused. Database server may be down or unreachable.\n"
+                    f"Original error: {e}"
+                ) from e
+            elif 'authentication failed' in error_str.lower():
+                raise ConnectionError(
+                    f"Authentication failed. Check your username and password.\n"
+                    f"Original error: {e}"
+                ) from e
+            else:
+                raise ConnectionError(f"Failed to connect to PostgreSQL: {e}") from e
         except Exception as e:
             raise ConnectionError(f"Failed to connect to PostgreSQL: {e}") from e
     
