@@ -2,6 +2,9 @@
 import eventlet
 eventlet.monkey_patch()
 
+# Configure logging to suppress sensitive data (MUST be before other imports)
+import logging_config
+
 from flask import Flask, request, jsonify, session, send_from_directory
 import os
 import re

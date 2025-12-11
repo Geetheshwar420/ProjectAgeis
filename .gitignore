@@ -1,15 +1,31 @@
-# Root .gitignore for Messaging App
+# Root .gitignore for Quantum Secure Messaging App
 
-# Documentation (if you want to keep docs private)
-# /docs/
+# ============================================================================
+# ENVIRONMENT & SECRETS
+# ============================================================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+*.key
+*.pem
+*.cert
+secrets/
 
-# OS Files
+# ============================================================================
+# OS & EDITOR FILES
+# ============================================================================
 .DS_Store
 Thumbs.db
 desktop.ini
+.AppleDouble
+.LSOverride
 
 # IDE / Editor
 .vscode/
+.vscode-server/
 .idea/
 *.swp
 *.swo
@@ -17,62 +33,129 @@ desktop.ini
 .project
 .classpath
 .settings/
+*.sublime-project
+*.sublime-workspace
+.atom/
+.env.json
 
-# Logs
+# ============================================================================
+# PYTHON CACHE & COMPILED FILES
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ============================================================================
+# TESTING & COVERAGE
+# ============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+coverage/
+*.cover
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# ============================================================================
+# LOGGING & TEMPORARY FILES
+# ============================================================================
 *.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-
-# Temporary files
 *.tmp
 *.bak
+*.backup
 *.swp
-*.swo
 .cache/
+temp/
+tmp/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# ============================================================================
+# DATABASE FILES
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+backup/
+backups/
 
-# Video recordings (from testing)
+# ============================================================================
+# FRONTEND BUILD & DEPENDENCIES
+# ============================================================================
+node_modules/
+npm-debug.log
+yarn-error.log
+.eslintcache
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ============================================================================
+# MEDIA FILES (TESTING)
+# ============================================================================
 *.mp4
 *.webm
 *.avi
 *.mov
 *.mkv
+*.flv
+*.wmv
 
-# Database files (if using SQLite locally)
-*.db
-*.sqlite
-*.sqlite3
+# ============================================================================
+# PACKAGE MANAGERS
+# ============================================================================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Pipfile.lock
+poetry.lock
 
-# Compiled files
-*.pyc
-__pycache__/
-*.pyo
-*.pyd
-.Python
+# ============================================================================
+# UPLOADS & USER DATA
+# ============================================================================
+uploads/
+user_data/
+*.temp
 
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage/
-
-# pytest
-.pytest_cache/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-docs/
+# ============================================================================
+# MISCELLANEOUS
+# ============================================================================
+.DS_Store
+Thumbs.db
+.env.json
 New folder/
+test_output.txt
+*.orig
+*.rej
+docs/
