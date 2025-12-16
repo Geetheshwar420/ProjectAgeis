@@ -93,6 +93,13 @@ lerna-debug.log*
 *.bak
 *.backup
 *.swp
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .cache/
 temp/
 tmp/
