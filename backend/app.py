@@ -2,12 +2,16 @@
 import eventlet
 eventlet.monkey_patch()
 
-from flask import Flask, request, jsonify, session
+# Configure logging to suppress sensitive data (MUST be before other imports)
+import logging_config
+
+from flask import Flask, request, jsonify, session, send_from_directory
 import os
 import re
 import logging
 import sqlite3
 import base64
+from werkzeug.utils import secure_filename
 from concurrent.futures import ThreadPoolExecutor
 from flask_cors import CORS
 from functools import wraps
@@ -283,13 +287,13 @@ def init_app_database():
                 print(f"⚠️  Schema backfill skipped: {schema_err}")
                 
     except Exception as e:
-        print(f"❌ Error initializing database: {e}")
+        print(f"ERROR: Failed to initialize database: {e}")
         import traceback
         traceback.print_exc()
         raise
 
 print("\n" + "="*60)
-print("🚀 Starting Quantum Secure Messaging Backend")
+print("Starting Quantum Secure Messaging Backend")
 print("="*60 + "\n")
 
 # Configure session security based on environment
@@ -319,6 +323,14 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
 app.config['SESSION_COOKIE_NAME'] = 'session'  # Explicit cookie name
 # Don't set SESSION_COOKIE_DOMAIN - let Flask use the request's host automatically
 # This allows cookies to work on localhost, LAN IPs, and production domains
+
+# File Upload Configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max limit
 
 if is_production:
     print("🔒 Production mode: Secure session cookies enabled (SameSite=None, Secure=True)")
@@ -689,6 +701,37 @@ def get_user_status(username):
         'username': username,
         'is_online': is_online
     }), 200
+
+
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'zip'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        # Add timestamp to filename to prevent duplicates/overwrites
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        unique_filename = f"{timestamp}_{filename}"
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_filename))
+        
+        # Return the URL to access the file
+        file_url = f"/uploads/{unique_filename}"
+        return jsonify({'message': 'File uploaded successfully', 'url': file_url, 'filename': filename}), 201
+    return jsonify({'error': 'File type not allowed'}), 400
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 @socketio.on('connect')

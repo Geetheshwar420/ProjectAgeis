@@ -1,102 +1,53 @@
 """
-Database adapter for supporting both SQLite (localhost) and PostgreSQL/CockroachDB (production)
+Database adapter for Supabase PostgreSQL/CockroachDB (production only)
 
 Thread Safety:
-    This adapter uses check_same_thread=False and threading.Lock for SQLite connections.
-    
-    SQLite Limitations:
-        SQLite connections can be shared across threads, but database operations 
-        (cursor creation, execute, commit, rollback) must be serialized. The adapter
-        uses a threading.Lock to ensure only one thread accesses the connection at a time.
-        
-    Typical Usage in Flask:
-        Each HTTP request is handled in its own thread, but requests are processed
-        sequentially. The lock ensures that if two requests arrive simultaneously,
-        their database operations don't interfere with each other.
-        
-    PostgreSQL:
-        PostgreSQL connections are naturally thread-safe and don't require locking
-        (though creating separate connections per thread is still recommended for
-        best performance).
+    PostgreSQL connections are naturally thread-safe.
+    Each request creates its own database connection for best performance.
 """
 import os
-import sqlite3
 import threading
 from contextlib import contextmanager
 from urllib.parse import urlparse
 
-# Try to import psycopg2 for PostgreSQL support
-try:
-    import psycopg2
-    import psycopg2.extras
-    POSTGRES_AVAILABLE = True
-except ImportError:
-    POSTGRES_AVAILABLE = False
-    print("⚠️  psycopg2 not available - PostgreSQL/CockroachDB support disabled")
+# Import psycopg2 for PostgreSQL/CockroachDB support
+import psycopg2
+import psycopg2.extras
 
 
 class DatabaseAdapter:
     """
-    Database adapter that provides a unified interface for SQLite and PostgreSQL.
+    Database adapter for Supabase PostgreSQL/CockroachDB connections only.
     
-    Thread Safety:
-        This adapter is thread-safe for use in multi-threaded applications like Flask.
-        - Uses threading.Lock to synchronize access to SQLite connections
-        - SQLite connections created with check_same_thread=False
-        - All DB operations (execute, commit, rollback) acquire the lock automatically
+    Production-only implementation with direct PostgreSQL support.
+    No fallback to SQLite.
     """
     
     def __init__(self, connection_string=None):
         """
-        Initialize database connection based on connection string.
+        Initialize database connection for PostgreSQL/CockroachDB.
         
         Args:
             connection_string: Database URL. Examples:
-                - sqlite:///path/to/db.db
                 - postgresql://user:pass@host:port/dbname
-                - None (defaults to SQLite with SQLITE_DATABASE_PATH or messaging_app.db)
+                - postgresql://host/dbname (if user/pass in connection string)
         """
-        self.connection_string = connection_string or self._get_default_connection_string()
-        self.db_type = self._detect_db_type()
+        self.connection_string = connection_string or self._get_connection_string()
+        self.db_type = 'postgresql'
         self.connection = None
-        self._lock = threading.Lock()  # Protect SQLite connection access across threads
-        
-        print(f"🗄️  Database: {self.db_type.upper()}")
-        if self.db_type == 'sqlite':
-            print(f"   Path: {self._get_sqlite_path()}")
-        else:
-            print(f"   Host: {self._get_postgres_host()}")
+        self._lock = threading.Lock()
     
-    def _get_default_connection_string(self):
-        """Get default connection string from environment or use SQLite"""
-        # Check for DATABASE_URL (common in production environments)
+    def _get_connection_string(self):
+        """Get connection string from DATABASE_URL environment variable"""
         db_url = os.getenv('DATABASE_URL')
-        if db_url:
-            # Render/Heroku use 'postgres://' but psycopg2 needs 'postgresql://'
-            if db_url.startswith('postgres://'):
-                db_url = db_url.replace('postgres://', 'postgresql://', 1)
-            return db_url
+        if not db_url:
+            raise ValueError("DATABASE_URL environment variable not set. Set it to PostgreSQL connection string.")
         
-        # Fall back to SQLite
-        sqlite_path = os.getenv('SQLITE_DATABASE_PATH', 'messaging_app.db')
-        if not os.path.isabs(sqlite_path):
-            sqlite_path = os.path.join(os.path.dirname(__file__), sqlite_path)
-        return f'sqlite:///{sqlite_path}'
-    
-    def _detect_db_type(self):
-        """Detect database type from connection string"""
-        if self.connection_string.startswith('sqlite'):
-            return 'sqlite'
-        elif self.connection_string.startswith('postgresql'):
-            if not POSTGRES_AVAILABLE:
-                raise RuntimeError("PostgreSQL connection requested but psycopg2 is not installed")
-            return 'postgresql'
-        else:
-            raise ValueError(f"Unsupported database type in connection string: {self.connection_string}")
-    
-    def _get_sqlite_path(self):
-        """Extract SQLite file path from connection string"""
-        return self.connection_string.replace('sqlite:///', '')
+        # Render/Heroku use 'postgres://' but psycopg2 needs 'postgresql://'
+        if db_url.startswith('postgres://'):
+            db_url = db_url.replace('postgres://', 'postgresql://', 1)
+        
+        return db_url
     
     def _get_postgres_host(self):
         """Extract PostgreSQL host from connection string"""
@@ -105,30 +56,43 @@ class DatabaseAdapter:
     
     def connect(self):
         """
-        Establish database connection.
-        
-        Thread Safety:
-            SQLite connections are created with check_same_thread=False to allow
-            cross-thread usage. Access is protected by self._lock.
+        Establish PostgreSQL/CockroachDB connection.
+        Raises exception if connection fails (no fallback).
         """
-        if self.db_type == 'sqlite':
-            self.connection = sqlite3.connect(self._get_sqlite_path(), check_same_thread=False)
-            self.connection.row_factory = sqlite3.Row
-        else:  # postgresql
-            self.connection = psycopg2.connect(self.connection_string)
-        
-        return self.connection
+        try:
+            self.connection = psycopg2.connect(self.connection_string, connect_timeout=10)
+            return self.connection
+        except psycopg2.OperationalError as e:
+            error_str = str(e)
+            if 'codeProxyRefusedConnection' in error_str:
+                raise ConnectionError(
+                    f"CockroachDB proxy refused connection. Possible causes:\n"
+                    f"  1. Invalid username or password\n"
+                    f"  2. Cluster is paused - resume it in CockroachDB dashboard\n"
+                    f"  3. Invalid cluster ID or connection string\n"
+                    f"Original error: {e}"
+                ) from e
+            elif 'connection refused' in error_str.lower():
+                raise ConnectionError(
+                    f"Connection refused. Database server may be down or unreachable.\n"
+                    f"Original error: {e}"
+                ) from e
+            elif 'authentication failed' in error_str.lower():
+                raise ConnectionError(
+                    f"Authentication failed. Check your username and password.\n"
+                    f"Original error: {e}"
+                ) from e
+            else:
+                raise ConnectionError(f"Failed to connect to PostgreSQL: {e}") from e
+        except Exception as e:
+            raise ConnectionError(f"Failed to connect to PostgreSQL: {e}") from e
     
     def cursor(self):
-        """Get a database cursor (thread-safe)"""
+        """Get a PostgreSQL cursor (thread-safe with RealDictCursor for named column access)"""
         with self._lock:
             if not self.connection:
                 self.connect()
-            
-            if self.db_type == 'sqlite':
-                return self.connection.cursor()
-            else:  # postgresql
-                return self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            return self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
     def commit(self):
         """Commit current transaction (thread-safe)"""
@@ -511,16 +475,13 @@ class DatabaseAdapter:
             # Fetch the returned row (this is single-use - cursor will be exhausted after)
             try:
                 result = cursor.fetchone()
-            except Exception as e:
-                # Log the error and return None
-                print(f"⚠️  Failed to fetch RETURNING row from PostgreSQL cursor: {e}")
+            except Exception:
+                # Silently fail - avoid exposing database errors
                 cursor._last_insert_id = None
                 return None
             
             # Handle case where no row was returned
             if result is None:
-                print("⚠️  PostgreSQL INSERT with RETURNING id returned no row. "
-                      "This may indicate the INSERT failed or RETURNING clause was not added.")
                 cursor._last_insert_id = None
                 return None
             
@@ -530,16 +491,10 @@ class DatabaseAdapter:
                 # Cache the ID on the cursor for subsequent calls
                 cursor._last_insert_id = insert_id
                 return insert_id
-            except (KeyError, TypeError) as e:
+            except (KeyError, TypeError):
                 # Handle missing 'id' key or non-dict result
-                error_msg = (
-                    f"PostgreSQL RETURNING clause returned a row, but 'id' key is missing. "
-                    f"Result type: {type(result)}, Result: {result}. "
-                    f"Ensure the table has an 'id' column or use add_returning_id=False."
-                )
-                print(f"❌ {error_msg}")
                 cursor._last_insert_id = None
-                raise ValueError(error_msg) from e
+                return None
 
 
 def get_db_connection():

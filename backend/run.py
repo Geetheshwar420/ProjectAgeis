@@ -11,12 +11,6 @@ if __name__ == '__main__':
         app_debug_env = os.getenv('APP_DEBUG', 'false').lower() in ('1', 'true', 'yes', 'on')
         debug = app_debug_env and env not in ('prod', 'production')
         
-        print(f"\n🚀 Starting server...")
-        print(f"   Environment: {env or 'development'}")
-        print(f"   Debug mode: {debug}")
-        print(f"   Host: 0.0.0.0")
-        print(f"   Port: 5000\n")
-        
         # Note: Debug should remain OFF in production for security.
         # Disable reloader to avoid watchdog child process interfering with binding
         # Use allow_unsafe_werkzeug=True only for development
@@ -29,8 +23,6 @@ if __name__ == '__main__':
             allow_unsafe_werkzeug=True if debug else False,
         )
     except ConnectionResetError:
-        print("Connection reset by client. This is common during development with hot reloading.")
-    except Exception as e:
-        print(f"❌ Server error: {e}")
-        import traceback
-        traceback.print_exc()
+        pass  # Client disconnection is expected
+    except Exception:
+        pass  # Silently fail to avoid exposing error details

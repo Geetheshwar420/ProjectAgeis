@@ -1,7 +1,97 @@
-/docs/
+# Root .gitignore for Quantum Secure Messaging App
+
+# ============================================================================
+# ENVIRONMENT & SECRETS
+# ============================================================================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.test
+*.key
+*.pem
+*.cert
+secrets/
+
+# ============================================================================
+# OS & EDITOR FILES
+# ============================================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+.AppleDouble
+.LSOverride
+
+# IDE / Editor
+.vscode/
+.vscode-server/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.atom/
+.env.json
+
+# ============================================================================
+# PYTHON CACHE & COMPILED FILES
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ============================================================================
+# TESTING & COVERAGE
+# ============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+coverage/
+*.cover
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# ============================================================================
+# LOGGING & TEMPORARY FILES
+# ============================================================================
 *.log
-*.bak
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 *.tmp
+*.bak
+*.backup
 *.swp
 
 # Python cache files
@@ -10,3 +100,69 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.cache/
+temp/
+tmp/
+
+# ============================================================================
+# DATABASE FILES
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+backup/
+backups/
+
+# ============================================================================
+# FRONTEND BUILD & DEPENDENCIES
+# ============================================================================
+node_modules/
+npm-debug.log
+yarn-error.log
+.eslintcache
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ============================================================================
+# MEDIA FILES (TESTING)
+# ============================================================================
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+*.flv
+*.wmv
+
+# ============================================================================
+# PACKAGE MANAGERS
+# ============================================================================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Pipfile.lock
+poetry.lock
+
+# ============================================================================
+# UPLOADS & USER DATA
+# ============================================================================
+uploads/
+user_data/
+*.temp
+
+# ============================================================================
+# MISCELLANEOUS
+# ============================================================================
+.DS_Store
+Thumbs.db
+.env.json
+New folder/
+test_output.txt
+*.orig
+*.rej
+docs/

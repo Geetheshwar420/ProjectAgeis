@@ -1,31 +1,99 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.production
-.env.development
-
-
+# ============================================================================
+# LOGGING
+# ============================================================================
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Backup files
+# ============================================================================
+# DEPENDENCIES
+# ============================================================================
+node_modules
+.pnp
+.pnp.js
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================================================
+# BUILD OUTPUT
+# ============================================================================
+dist
+dist-ssr
+build
+*.local
+.next
+out
+.turbo
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.*
+!.env.example
+
+# ============================================================================
+# TESTING & COVERAGE
+# ============================================================================
+coverage
+.nyc_output
+.coverage
+htmlcov/
+.pytest_cache/
+
+# ============================================================================
+# BUILD TOOLS & CACHES
+# ============================================================================
+.vite
+.eslintcache
+.cache
+.parcel-cache
+.next
+out
+
+# ============================================================================
+# IDE & EDITOR
+# ============================================================================
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+
+# ============================================================================
+# TYPESCRIPT
+# ============================================================================
+*.tsbuildinfo
+
+# ============================================================================
+# TEMPORARY & BACKUP FILES
+# ============================================================================
 *.bak
-*_backup.*
-*_jwt.*
+*.backup
+*.orig
+*.rej
+*~
+.tmp
+temp/
+tmp/
+test_output.txt
+*.tmp
+*.bak

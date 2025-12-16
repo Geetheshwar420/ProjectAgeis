@@ -240,5 +240,4 @@ class Message:
             return message_id
         except Exception as e:
             db.rollback()
-            print(f"❌ Error saving message: {e}")
-            raise ValueError(f'Message save failed: {e}')
+            raise ValueError(f'Message save failed') from e
