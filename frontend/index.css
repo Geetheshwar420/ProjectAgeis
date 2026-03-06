@@ -1,0 +1,97 @@
+@import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --color-teal-400: #32B8C6;
+    --color-teal-500: #21808D;
+    --color-teal-600: #1A6873;
+    --color-dark-800: #1A1A1A;
+    --color-dark-900: #121212;
+
+    --font-sans: "Inter", sans-serif;
+
+    --animate-fade-in: fadeIn 0.3s ease-out;
+    --animate-slide-in-right: slideInRight 0.3s ease-out;
+    --animate-slide-in-left: slideInLeft 0.3s ease-out;
+    --animate-bounce-soft: bounceSoft 2s infinite;
+    --animate-scale-in: scaleIn 0.25s ease-out;
+    --animate-scan: scan 2s linear infinite;
+
+    @keyframes fadeIn {
+        0% {
+            opacity: 0;
+        }
+
+        100% {
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideInRight {
+        0% {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        100% {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideInLeft {
+        0% {
+            transform: translateX(-20px);
+            opacity: 0;
+        }
+
+        100% {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes bounceSoft {
+
+        0%,
+        100% {
+            transform: translateY(-2px);
+        }
+
+        50% {
+            transform: translateY(2px);
+        }
+    }
+
+    @keyframes scaleIn {
+        0% {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    @keyframes scan {
+        0% {
+            top: 0%;
+            opacity: 0;
+        }
+
+        10% {
+            opacity: 1;
+        }
+
+        90% {
+            opacity: 1;
+        }
+
+        100% {
+            top: 100%;
+            opacity: 0;
+        }
+    }
+}

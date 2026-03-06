@@ -51,7 +51,7 @@ class QuantumCryptoService:
         self._hash_cache: Dict[bytes, bytes] = {}
         self._cipher_cache: Dict[bytes, Any] = {}
         
-        print("🔐 Quantum Cryptography Service initialized (OPTIMIZED)")
+        print("[SECURE] Quantum Cryptography Service initialized (OPTIMIZED)")
         print(f"   - BB84 Protocol: 256-bit keys (deterministic per user pair)")
         print(f"   - Kyber KEM: Security level {self.kyber.security_level}")
         print(f"   - Dilithium: Security level {self.dilithium.security_level}")

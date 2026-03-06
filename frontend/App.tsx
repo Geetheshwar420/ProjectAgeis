@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import LeftSidebar from './components/LeftSidebar';
 import ChatWindow from './components/ChatWindow';
 import RightSidebar from './components/RightSidebar';
@@ -6,11 +6,14 @@ import QRCodeModal from './components/QRCodeModal';
 import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
-import { AddFriendModal, InviteModal } from './components/Modals';
+import ErrorBoundary from './components/ErrorBoundary';
+import { AddFriendModal, InviteModal, ProfileModal, SettingsModal } from './components/Modals';
 import { Chat, MessageType, MessageStatus, TabType } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider, useSocket } from './context/SocketContext';
 import api from './services/api';
+import { CryptoService } from './services/CryptoEngine';
+import { StorageService } from './services/StorageService';
 
 type AppView = 'landing' | 'login' | 'signup' | 'app';
 
@@ -37,7 +40,15 @@ const AppContent: React.FC = () => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
+  const chatsRef = useRef<Chat[]>([]);
+
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
+
   const [activeTab, setActiveTab] = useState<TabType>('messages');
 
   // Apply theme to document and save to localStorage
@@ -55,23 +66,48 @@ const AppContent: React.FC = () => {
     const fetchChats = async () => {
       if (!user) return;
       try {
-        const response = await api.get('/users');
-        const users = response.data.filter((u: any) => u.username !== user.username);
+        const response = await api.get('/friends');
+        const users = response.data;
 
-        // Map users to Chat objects
-        const mappedChats: Chat[] = users.map((u: any) => ({
-          id: u.username,
-          participants: [{
+        // Map users to Chat objects and LOAD HISTORY
+        const mappedChats: Chat[] = await Promise.all(users.map(async (u: any) => {
+          const chatHistory = await StorageService.getMessages(u.username);
+          const sharedKey = await CryptoService.getSharedKeyForPeer(user.username, u.username);
+
+          // Decrypt history messages if needed
+          const decryptedMessages = await Promise.all(chatHistory.map(async (msg) => {
+            let content = msg.content;
+            if (msg.is_encrypted) {
+              content = await CryptoService.decryptMessageSafe(msg.content, sharedKey);
+            }
+            return {
+              id: msg.id,
+              senderId: msg.sender_id,
+              content: content,
+              type: (msg.type as MessageType) || MessageType.TEXT,
+              timestamp: new Date(msg.timestamp),
+              status: MessageStatus.READ,
+              mediaUrl: msg.url,
+              fileName: msg.type === 'file' ? msg.content : undefined,
+            };
+          }));
+
+          return {
             id: u.username,
-            name: u.username,
-            avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + u.username,
-            status: u.is_online ? 'online' : 'offline',
-            lastSeen: 'recently'
-          }],
-          messages: [],
-          unreadCount: 0,
-          isPinned: false,
-          type: 'direct'
+            participants: [{
+              id: u.username,
+              name: u.username,
+              username: u.username,
+              avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + u.username,
+              status: u.is_online ? 'online' : 'offline',
+              lastSeen: 'recently',
+              public_keys: u.public_keys
+            }],
+            messages: decryptedMessages,
+            unreadCount: 0,
+            isPinned: false,
+            type: 'direct' as const
+          };
         }));
         setChats(mappedChats);
       } catch (error) {
@@ -85,20 +121,62 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('new_message', (message: any) => {
+    socket.on('new_message', async (message: any) => {
+      // 1. Decrypt if needed
+      let decryptedContent = message.encrypted_message;
+
+      if (user && message.sender_id !== user.username) {
+        try {
+          if (message.is_hybrid) {
+            // HYBRID FLOW
+            const myKeys = await StorageService.getIdentityKeys();
+            const senderChat = chatsRef.current.find(c => c.id === message.sender_id);
+            let senderPubKey = senderChat?.participants[0]?.public_keys?.dilithium;
+
+            // FALLBACK: Fetch keys if missing locally
+            if (!senderPubKey) {
+              console.log(`Key mismatch or missing for ${message.sender_id}. Fetching from server...`);
+              try {
+                const resp = await api.get(`/user/${message.sender_id}`);
+                senderPubKey = resp.data.public_keys?.dilithium;
+              } catch (e) {
+                console.error("Failed to fetch sender public keys from server:", e);
+              }
+            }
+
+            if (myKeys && senderPubKey) {
+              decryptedContent = await CryptoService.hybridDecrypt(
+                message.encrypted_message,
+                myKeys.kyberSecKey,
+                senderPubKey,
+                user.username,
+                message.sender_id
+              );
+            } else {
+              console.warn("Keys missing for hybrid decryption (even after fetch). Content may stay encrypted.");
+            }
+          } else {
+            // LEGACY / FALLBACK FLOW
+            const sharedKey = await CryptoService.getSharedKeyForPeer(user.username, message.sender_id);
+            decryptedContent = await CryptoService.decryptMessageSafe(message.encrypted_message, sharedKey);
+          }
+        } catch (err) {
+          console.error('Decryption failed for incoming message:', err);
+        }
+      }
+
       setChats(prevChats => prevChats.map(chat => {
         const otherId = message.sender_id === user?.username ? message.recipient_id : message.sender_id;
         if (chat.id === otherId) {
           const newMsg = {
             id: message._id || `m_${Date.now()}`,
             senderId: message.sender_id,
-            content: message.encrypted_message, // Note: This is encrypted! ChatWindow needs to decrypt.
-            // For now, we assume ChatWindow handles decryption or we store it as is.
-            // Actually, if we receive it here, we might want to decrypt it if we have the session key.
-            // But for MVP, let's pass it through.
-            type: MessageType.TEXT,
-            timestamp: new Date(message.timestamp),
+            content: decryptedContent,
+            type: message.type || MessageType.TEXT,
+            timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
             status: MessageStatus.DELIVERED,
+            mediaUrl: message.url,
+            fileName: message.content,
           };
           return {
             ...chat,
@@ -147,6 +225,8 @@ const AppContent: React.FC = () => {
     await logout();
     setView('landing');
     setActiveChatId(null);
+    setChats([]);
+    setActiveTab('messages');
   };
 
   const handleAddFriend = async (username: string) => {
@@ -159,7 +239,34 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleAcceptFriend = (friendUsername: string) => {
+    // Optimistically add to chats array if not there
+    setChats(prev => {
+      if (prev.some(c => c.id === friendUsername)) return prev;
+      return [...prev, {
+        id: friendUsername,
+        participants: [{
+          id: friendUsername,
+          name: friendUsername,
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + friendUsername,
+          status: 'online', // assume online for now or rely on socket
+          lastSeen: 'recently'
+        }],
+        messages: [],
+        unreadCount: 0,
+        isPinned: false,
+        type: 'direct'
+      }];
+    });
+  };
+
   const activeChat = activeChatId ? chats.find(c => c.id === activeChatId) || null : null;
+
+  useEffect(() => {
+    if (activeChatId) {
+      console.log(`DEBUG: Chat selected: ${activeChatId}, Found object:`, activeChat);
+    }
+  }, [activeChatId, activeChat]);
 
   const handleSendMessage = (text: string, type: MessageType = MessageType.TEXT) => {
     if (!activeChatId || !user) return;
@@ -236,7 +343,10 @@ const AppContent: React.FC = () => {
             onOpenQR={() => setIsQRModalOpen(true)}
             onAddFriend={() => setIsAddFriendModalOpen(true)}
             onInvite={() => setIsInviteModalOpen(true)}
+            onOpenProfile={() => setIsProfileModalOpen(true)}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
             onLogout={handleLogout}
+            onAcceptFriend={handleAcceptFriend}
             theme={theme}
             setTheme={setTheme}
           />
@@ -273,11 +383,24 @@ const AppContent: React.FC = () => {
         isOpen={isAddFriendModalOpen}
         onClose={() => setIsAddFriendModalOpen(false)}
         onAdd={handleAddFriend}
+        currentUser={user || undefined}
       />
       <InviteModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         currentUser={user || { id: 'guest', name: 'Guest', avatar: '' }}
+      />
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        currentUser={user}
+        onLogout={handleLogout}
+      />
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        theme={theme}
+        setTheme={setTheme}
       />
     </div>
   );
@@ -297,7 +420,9 @@ const SocketWrapper: React.FC = () => {
   const { user } = useAuth();
   return (
     <SocketProvider currentUser={user}>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </SocketProvider>
   );
 };

@@ -1,6 +1,8 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
@@ -8,6 +10,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
+      },
       proxy: {
         '/socket.io': {
           target: 'http://localhost:5000',
@@ -18,11 +23,6 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:5000',
           changeOrigin: true
         },
-        // Proxy all other requests that might be API calls if they don't match static assets
-        // However, be careful not to proxy frontend routes.
-        // Since we use specific endpoints like /login, /register, etc., we might need to list them or use a prefix.
-        // The backend uses root-level routes (e.g. /login, /register).
-        // We should add specific proxies for them.
         '/login': 'http://localhost:5000',
         '/register': 'http://localhost:5000',
         '/logout': 'http://localhost:5000',
@@ -43,7 +43,32 @@ export default defineConfig(({ mode }) => {
         '/uploads': 'http://localhost:5000',
       }
     },
-    plugins: [react()],
+    plugins: [
+      tailwindcss(),
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        manifest: {
+          name: 'PROJECT AGIS',
+          short_name: 'AGIS',
+          description: 'Secure Messaging with Post-Quantum Cryptography',
+          theme_color: '#10b981',
+          icons: [
+            {
+              src: 'pwa-192x192.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: 'pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png'
+            }
+          ]
+        }
+      })
+    ],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
@@ -55,3 +80,4 @@ export default defineConfig(({ mode }) => {
     }
   };
 });
+

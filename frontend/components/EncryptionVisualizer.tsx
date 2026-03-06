@@ -14,7 +14,7 @@ const EncryptionVisualizer: React.FC = () => {
     svg.selectAll('*').remove();
 
     const data = d3.range(40).map(() => Math.random());
-    
+
     const x = d3.scaleLinear().domain([0, 39]).range([0, width]);
     const y = d3.scaleLinear().domain([0, 1]).range([height, 0]);
 
@@ -26,14 +26,14 @@ const EncryptionVisualizer: React.FC = () => {
     const path = svg.append('path')
       .datum(data)
       .attr('fill', 'none')
-      .attr('stroke', '#10B981')
-      .attr('stroke-width', 2)
+      .attr('stroke', '#000000') // Black stroke since it sits on Emerald Green background
+      .attr('stroke-width', 3)
       .attr('d', line);
 
     // Animation
     const animate = () => {
       const newData = d3.range(40).map(() => Math.random() * 0.7 + 0.15);
-      
+
       path.datum(newData)
         .transition()
         .duration(1000)
@@ -47,10 +47,10 @@ const EncryptionVisualizer: React.FC = () => {
   }, []);
 
   return (
-    <div className="w-full h-16 bg-green-900/10 rounded-lg overflow-hidden flex items-center justify-center relative">
-        <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-green-600 font-bold opacity-30 z-0">
-            ENCRYPTED SIGNAL
-        </div>
+    <div className="w-full h-16 bg-white/20 border-2 border-black border-dashed overflow-hidden flex items-center justify-center relative shadow-[inset_2px_2px_0px_rgba(0,0,0,0.1)]">
+      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-black font-black tracking-widest opacity-40 z-0 text-center uppercase">
+        ENCRYPTED_SIGNAL
+      </div>
       <svg ref={svgRef} width="100%" height="100%" viewBox="0 0 300 60" className="z-10" />
     </div>
   );

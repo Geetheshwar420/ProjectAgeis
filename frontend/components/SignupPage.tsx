@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, Lock, Mail, ArrowRight, Shield, Check } from 'lucide-react';
+import { User as UserIcon, Lock as LockIcon, Mail, ArrowRight, Shield, Check } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,7 +23,7 @@ const SignupPage: React.FC<SignupPageProps> = ({ onLogin, onNavigateLogin, onNav
       setFormData({ ...formData, [e.target.name]: e.target.value });
    };
 
-   const { login } = useAuth(); // Import useAuth
+   const { login, register } = useAuth(); // Import useAuth
 
    const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -33,169 +33,164 @@ const SignupPage: React.FC<SignupPageProps> = ({ onLogin, onNavigateLogin, onNav
       }
 
       setIsLoading(true);
+      const registrationEmail = formData.email.trim() || `${formData.username.trim()}@ages.internal`;
+
       try {
-         const response = await api.post('/register', {
-            username: formData.username,
-            email: formData.email,
-            password: formData.password
-         });
-         login(response.data.user);
+         await register(registrationEmail, formData.password, formData.username);
          onLogin();
       } catch (err: any) {
-         alert(err.response?.data?.error || 'Registration failed');
+         alert(err.message || 'Registration failed');
       } finally {
          setIsLoading(false);
       }
    };
 
    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f172a] relative overflow-hidden px-4 py-12">
-         {/* Dynamic Background */}
-         <div className="absolute inset-0">
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800" />
-            <div className="absolute bottom-[0%] left-[20%] w-[60%] h-[60%] rounded-full bg-teal-500/5 blur-[100px] animate-pulse" />
-         </div>
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black relative overflow-hidden px-4 py-12 font-sans selection:bg-emerald-500 selection:text-black">
+         {/* Stark Background Pattern */}
+         <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03] dark:opacity-[0.05]"
+            style={{ backgroundImage: 'linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-         <div className="relative w-full max-w-4xl bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scale-in">
+         <div className="relative w-full max-w-4xl bg-white dark:bg-black border-4 border-black dark:border-white shadow-[16px_16px_0px_#10b981] overflow-hidden flex flex-col md:flex-row z-10 animate-fade-in">
             {/* Left Side - Info */}
-            <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-teal-900/40 to-slate-900/40 w-1/3 border-r border-white/5">
+            <div className="hidden md:flex flex-col justify-between p-10 bg-emerald-500 text-black w-1/3 border-r-4 border-black dark:border-white">
                <div>
-                  <div className="w-12 h-12 bg-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/20 mb-6">
-                     <Shield className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-black border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_#000] mb-6 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000] transition-all">
+                     <Shield className="w-6 h-6 text-emerald-500" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Join AGES</h2>
-                  <p className="text-teal-200/70 leading-relaxed">Create your encrypted identity and start communicating securely.</p>
+                  <h2 className="text-3xl font-black text-black uppercase tracking-tighter mb-2">Initialize</h2>
+                  <p className="font-mono text-xs text-black/80 font-bold uppercase tracking-widest leading-relaxed">Establish Secure Identity & Generate Cryptographic Keys.</p>
                </div>
 
                <div className="space-y-6">
                   <div className="flex gap-4">
-                     <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0 text-teal-400 font-bold text-sm">1</div>
+                     <div className="w-8 h-8 border-2 border-black flex items-center justify-center shrink-0 text-black font-black text-sm shadow-[2px_2px_0px_#000]">1</div>
                      <div>
-                        <h4 className="text-white font-medium">Create ID</h4>
-                        <p className="text-slate-400 text-xs mt-1">Choose a unique username</p>
+                        <h4 className="text-black font-black uppercase tracking-tight">Identity</h4>
+                        <p className="font-mono text-black/70 text-[10px] mt-1 uppercase tracking-wider">Choose Handle</p>
                      </div>
                   </div>
                   <div className="flex gap-4">
-                     <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0 text-teal-400 font-bold text-sm">2</div>
+                     <div className="w-8 h-8 border-2 border-black flex items-center justify-center shrink-0 text-black font-black text-sm shadow-[2px_2px_0px_#000]">2</div>
                      <div>
-                        <h4 className="text-white font-medium">Generate Keys</h4>
-                        <p className="text-slate-400 text-xs mt-1">Automatic local encryption</p>
+                        <h4 className="text-black font-black uppercase tracking-tight">Keys</h4>
+                        <p className="font-mono text-black/70 text-[10px] mt-1 uppercase tracking-wider">Local Generation</p>
                      </div>
                   </div>
                   <div className="flex gap-4">
-                     <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0 text-teal-400 font-bold text-sm">3</div>
+                     <div className="w-8 h-8 border-2 border-black flex items-center justify-center shrink-0 text-black font-black text-sm shadow-[2px_2px_0px_#000]">3</div>
                      <div>
-                        <h4 className="text-white font-medium">Start Chatting</h4>
-                        <p className="text-slate-400 text-xs mt-1">Connect without phone numbers</p>
+                        <h4 className="text-black font-black uppercase tracking-tight">Connect</h4>
+                        <p className="font-mono text-black/70 text-[10px] mt-1 uppercase tracking-wider">Zero Phone Numbers</p>
                      </div>
                   </div>
                </div>
 
-               <p className="text-xs text-slate-500">© 2025 AGES Inc.</p>
+               <p className="font-mono text-[10px] text-black font-bold uppercase tracking-widest">© 2025 SECURE.LINK PROTOCOL</p>
             </div>
 
             {/* Right Side - Form */}
-            <div className="flex-1 p-8 md:p-12">
-               <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-bold text-white">Create Account</h2>
-                  <button onClick={onNavigateHome} className="text-slate-500 hover:text-white text-sm">Cancel</button>
+            <div className="flex-1 p-8 md:p-12 relative">
+               <div className="flex justify-between items-center mb-10 border-b-4 border-black dark:border-white pb-4">
+                  <h2 className="text-4xl font-black text-black dark:text-white uppercase tracking-tighter">Registration</h2>
+                  <button onClick={onNavigateHome} className="text-black dark:text-white font-bold hover:text-emerald-500 uppercase tracking-widest text-xs transition-colors">Abort</button>
                </div>
 
-               <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+               <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300">Username</label>
-                        <div className="relative">
-                           <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <label className="text-xs font-bold text-black dark:text-white uppercase block tracking-wider">Target Handle</label>
+                        <div className="relative group">
+                           <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black dark:text-white transition-colors" />
                            <input
                               name="username"
                               value={formData.username}
                               onChange={handleChange}
-                              className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-                              placeholder="Ex: @alexrivera"
+                              className="w-full bg-transparent border-2 border-black dark:border-white rounded-none py-3.5 pl-12 pr-4 text-black dark:text-white placeholder-slate-400 font-mono focus:outline-none focus:border-emerald-500 focus:ring-0 transition-colors"
+                              placeholder="@GHOST_PROTOCOL"
                            />
                         </div>
                      </div>
                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300">Email (Optional)</label>
-                        <div className="relative">
-                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <label className="text-xs font-bold text-black dark:text-white uppercase block tracking-wider">Recovery Vector (Optional)</label>
+                        <div className="relative group">
+                           <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black dark:text-white transition-colors" />
                            <input
                               name="email"
                               value={formData.email}
                               onChange={handleChange}
-                              className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-                              placeholder="For account recovery"
+                              className="w-full bg-transparent border-2 border-black dark:border-white rounded-none py-3.5 pl-12 pr-4 text-black dark:text-white placeholder-slate-400 font-mono focus:outline-none focus:border-emerald-500 focus:ring-0 transition-colors"
+                              placeholder="ANON@MAIL.COM"
                            />
                         </div>
                      </div>
                   </div>
 
                   <div className="space-y-2">
-                     <label className="text-sm font-medium text-slate-300">Password</label>
-                     <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                     <label className="text-xs font-bold text-black dark:text-white uppercase block tracking-wider">Master Passphrase</label>
+                     <div className="relative group">
+                        <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black dark:text-white transition-colors" />
                         <input
                            name="password"
                            type="password"
                            value={formData.password}
                            onChange={handleChange}
-                           className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-                           placeholder="Create a strong password"
+                           className="w-full bg-transparent border-2 border-black dark:border-white rounded-none py-3.5 pl-12 pr-4 text-black dark:text-white placeholder-slate-400 font-mono focus:outline-none focus:border-emerald-500 focus:ring-0 transition-colors"
+                           placeholder="ENTROPY_REQUIRED"
                         />
                      </div>
-                     {/* Strength Meter */}
-                     <div className="flex gap-1 mt-2 h-1">
-                        <div className="flex-1 bg-red-500 rounded-full opacity-100"></div>
-                        <div className="flex-1 bg-yellow-500 rounded-full opacity-50"></div>
-                        <div className="flex-1 bg-green-500 rounded-full opacity-20"></div>
-                        <div className="flex-1 bg-green-500 rounded-full opacity-20"></div>
+                     {/* Brutalist Strength Meter */}
+                     <div className="flex gap-1 mt-3">
+                        <div className="flex-1 border-2 border-black dark:border-white bg-red-500 h-2"></div>
+                        <div className="flex-1 border-2 border-black dark:border-white bg-yellow-500 h-2"></div>
+                        <div className="flex-1 border-2 border-black dark:border-white bg-transparent h-2"></div>
+                        <div className="flex-1 border-2 border-black dark:border-white bg-transparent h-2"></div>
                      </div>
-                     <p className="text-xs text-slate-500 text-right">Weak password</p>
+                     <p className="font-mono text-[10px] text-right text-black dark:text-white uppercase tracking-widest font-bold mt-1">Status: Unstable</p>
                   </div>
 
                   <div className="space-y-2">
-                     <label className="text-sm font-medium text-slate-300">Confirm Password</label>
-                     <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                     <label className="text-xs font-bold text-black dark:text-white uppercase block tracking-wider">Verify Passphrase</label>
+                     <div className="relative group">
+                        <LockIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black dark:text-white transition-colors" />
                         <input
                            name="confirmPassword"
                            type="password"
                            value={formData.confirmPassword}
                            onChange={handleChange}
-                           className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-                           placeholder="Repeat password"
+                           className="w-full bg-transparent border-2 border-black dark:border-white rounded-none py-3.5 pl-12 pr-4 text-black dark:text-white placeholder-slate-400 font-mono focus:outline-none focus:border-emerald-500 focus:ring-0 transition-colors"
+                           placeholder="CONFIRM_ENTROPY"
                         />
                      </div>
                   </div>
 
-                  <div className="flex items-start gap-3 pt-2">
-                     <div className="mt-1">
-                        <input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-teal-500 focus:ring-teal-500" />
+                  <div className="flex items-start gap-4 pt-4 border-t-2 border-black dark:border-white border-dashed">
+                     <div className="mt-0.5">
+                        <input type="checkbox" className="w-5 h-5 rounded-none border-2 border-black dark:border-white bg-transparent text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0" />
                      </div>
-                     <p className="text-xs text-slate-400">
-                        I agree to the <a href="#" className="text-teal-400 hover:underline">Terms of Service</a> and <a href="#" className="text-teal-400 hover:underline">Privacy Policy</a>. I understand that if I lose my password, my encrypted data cannot be recovered.
+                     <p className="text-xs font-mono font-bold uppercase text-black dark:text-white leading-relaxed">
+                        I agree to the <a href="#" className="text-emerald-500 hover:text-black dark:hover:text-white transition-colors border-b-2 border-emerald-500 px-1">TOS</a> & <a href="#" className="text-emerald-500 hover:text-black dark:hover:text-white transition-colors border-b-2 border-emerald-500 px-1">PRIVACY</a>. I understand that if I lose my passphrase, MY DATA IS UNRECOVERABLE.
                      </p>
                   </div>
 
                   <button
                      type="submit"
                      disabled={isLoading}
-                     className="w-full mt-4 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-teal-500/20 transition-all transform hover:scale-[1.01] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                     className="w-full mt-6 bg-black dark:bg-white text-white dark:text-black font-black uppercase tracking-widest py-4 border-2 border-black dark:border-white shadow-[6px_6px_0px_#10b981] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_#10b981] active:shadow-none active:translate-x-[6px] active:translate-y-[6px] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                   >
                      {isLoading ? (
-                        <>Generating Keys <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /></>
+                        <>Initializing Keys <div className="w-5 h-5 border-4 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin" /></>
                      ) : (
-                        <>Create Account <ArrowRight className="w-5 h-5" /></>
+                        <>Execute Creation <ArrowRight className="w-6 h-6" /></>
                      )}
                   </button>
                </form>
 
-               <div className="mt-8 text-center border-t border-white/5 pt-6">
-                  <p className="text-slate-400 text-sm">
-                     Already have an account?{' '}
-                     <button onClick={onNavigateLogin} className="text-teal-400 font-bold hover:text-teal-300 transition-colors">
-                        Sign in
+               <div className="mt-8 text-center border-t-4 border-black dark:border-white pt-6">
+                  <p className="text-black dark:text-white font-bold text-xs uppercase tracking-wide">
+                     Already Cleared?{' '}
+                     <button onClick={onNavigateLogin} className="text-emerald-500 font-black border-b-2 border-emerald-500 hover:bg-emerald-500 hover:text-black transition-colors px-1 ml-1">
+                        AUTHENTICATE
                      </button>
                   </p>
                </div>

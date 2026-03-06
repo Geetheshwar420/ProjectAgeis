@@ -23,6 +23,7 @@ export interface User {
   status: 'online' | 'offline' | 'away' | 'busy';
   bio?: string;
   lastSeen?: string;
+  public_keys?: { kyber: string; dilithium: string };
   email?: string;
   joinedDate?: string;
   mutualFriends?: number;

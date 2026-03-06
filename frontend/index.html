@@ -5,66 +5,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AGIES - Secure Messaging</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            teal: {
-              400: '#32B8C6',
-              500: '#21808D',
-              600: '#1A6873',
-            },
-            dark: {
-              800: '#1A1A1A',
-              900: '#121212',
-            }
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          },
-          animation: {
-            'fade-in': 'fadeIn 0.3s ease-out',
-            'slide-in-right': 'slideInRight 0.3s ease-out',
-            'slide-in-left': 'slideInLeft 0.3s ease-out',
-            'bounce-soft': 'bounceSoft 2s infinite',
-            'scale-in': 'scaleIn 0.25s ease-out',
-            'scan': 'scan 2s linear infinite',
-          },
-          keyframes: {
-            fadeIn: {
-              '0%': { opacity: '0' },
-              '100%': { opacity: '1' },
-            },
-            slideInRight: {
-              '0%': { transform: 'translateX(100%)', opacity: '0' },
-              '100%': { transform: 'translateX(0)', opacity: '1' },
-            },
-            slideInLeft: {
-              '0%': { transform: 'translateX(-20px)', opacity: '0' },
-              '100%': { transform: 'translateX(0)', opacity: '1' },
-            },
-            bounceSoft: {
-              '0%, 100%': { transform: 'translateY(-2px)' },
-              '50%': { transform: 'translateY(2px)' },
-            },
-            scaleIn: {
-              '0%': { transform: 'scale(0.9)', opacity: '0' },
-              '100%': { transform: 'scale(1)', opacity: '1' },
-            },
-            scan: {
-              '0%': { top: '0%', opacity: '0' },
-              '10%': { opacity: '1' },
-              '90%': { opacity: '1' },
-              '100%': { top: '100%', opacity: '0' },
-            }
-          }
-        },
-      },
-    };
-  </script>
+  <meta name="description" content="Secure Messaging with Post-Quantum Cryptography" />
+  <meta name="theme-color" content="#10b981" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="AGIS" />
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">

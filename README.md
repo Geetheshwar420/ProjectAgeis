@@ -1,215 +1,60 @@
-# Quantum-Secure Messaging App
+# Project Agis: Quantum-Resistant Secure Messaging
 
-A full-stack secure messaging application with post-quantum cryptography features:
-- **Backend**: Flask + Flask-SocketIO + SQLite with session-based authentication
-- **Frontend**: React 18 with real-time Socket.IO communication
-- **Security**: Post-quantum crypto (BB84, Kyber, Dilithium) + session-based auth
+A high-performance, real-time messaging application designed with future-proof security at its core. Project Agis implements a **Hybrid Post-Quantum Cryptography (PQC)** stack to ensure that conversations remain private even against the threat of future quantum computers.
 
-## 🚀 Quick Start (Development)
+## 🚀 Key Features
 
-### Backend Setup (Windows PowerShell):
+- **Hybrid PQC Architecture**: Combines traditional security with **BB84** (Quantum Key Distribution), **Kyber** (KEM), and **Dilithium** (Digital Signatures).
+- **End-to-End Encryption (E2EE)**: Messages are encrypted and decrypted strictly on the client side. The server never sees plaintext.
+- **Real-Time Communication**: Built with **Flask-SocketIO** for instantaneous message delivery.
+- **Modern Tech Stack**: React (Frontend), Flask (Backend), and **Firebase (Firestore & Storage)** for robust data persistence and file sharing.
+- **Ephemeral Storage**: Messages and keys can be cleared instantly upon logout via IndexedDB integration.
 
-```powershell
-cd backend
+## 🔒 Security Deep Dive (Hybrid Flow)
 
-# Create and activate virtual environment (recommended)
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+1.  **BB84 Entropy**: A deterministic shared secret is derived between peers to seed the exchange.
+2.  **Kyber KEM**: Post-quantum key encapsulation is used to establish a secure shared secret.
+3.  **Dilithium Signatures**: Every message is digitally signed by the sender and verified by the receiver to prevent tampering.
+4.  **AES-256-GCM**: The final payload is encrypted using established symmetrical encryption standards with the quantum-derived key.
 
-# Install dependencies
-pip install -r requirements.txt
+## ⚙️ Setup & Installation
 
-# Copy environment template and configure
-if (!(Test-Path .env)) { Copy-Item .env.sample .env }
+### Backend (Flask + Firebase)
+1.  Navigate to `/backend`.
+2.  Install dependencies: `pip install -r requirements.txt`.
+3.  Configure your credentials:
+    - Copy `.env.example` to `.env`.
+    - Place your Firebase Admin SDK JSON file in the `/backend` directory.
+    - Update `FIREBASE_CREDENTIALS_PATH` in `.env`.
+4.  Launch the server: `python app.py`.
 
-# Initialize database
-python db_init.py
-
-# Start the server
-python run.py
-```
-
-### Frontend Setup (separate terminal):
-
-```powershell
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm start
-```
-
-**Access the app:**
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
-- Health check: http://localhost:5000/healthz
-
-## ⚙️ Environment Variables
-
-### Backend (`backend/.env`):
-
-```env
-# Required
-SECRET_KEY=your-secret-key-here
-
-# Optional - defaults shown
-SQLITE_DATABASE_PATH=messaging_app.db
-TRUSTED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-APP_DEBUG=true
-FLASK_ENV=development
-```
-
-### Frontend (`frontend/.env`):
-
-```env
-# For production builds only (dev uses proxy)
-REACT_APP_API_URL=http://localhost:5000
-```
-
-## 🔒 Authentication
-
-The app uses **session-based authentication** with HttpOnly cookies:
-- No JWT tokens stored in localStorage
-- Secure session cookies with CSRF protection
-- Sessions persist server-side with 1-hour timeout
-- Socket.IO connections authenticated via session cookies
-
-## 📦 Production Deployment
-
-### Backend:
-
-1. **Update environment variables:**
-   ```env
-   APP_DEBUG=false
-   FLASK_ENV=production
-   TRUSTED_ORIGINS=https://your-frontend-domain.com
-   SECRET_KEY=strong-random-secret-key
-   ```
-
-2. **Set session security:**
-   - Enable HTTPS
-   - Set `SESSION_COOKIE_SECURE=True` in production
-   - Configure `SESSION_COOKIE_DOMAIN` for your domain
-
-3. **Deploy:**
-   ```powershell
-   python run.py
-   ```
-   - Runs with eventlet (production-ready WSGI server)
-   - Use nginx/Apache reverse proxy for HTTPS termination
-   - Recommended: Use gunicorn or similar for production
-
-### Frontend:
-
-1. **Build production bundle:**
-   ```powershell
-   cd frontend
-   npm run build
-   ```
-
-2. **Deploy:**
-   - Upload `build/` folder to hosting platform
-   - Platforms: Vercel, Netlify, AWS S3 + CloudFront, etc.
-   - Set `REACT_APP_API_URL` to your backend URL before building
-
-## 🧪 Testing
-
-### Health Check:
-```powershell
-curl http://localhost:5000/healthz
-```
-
-### Manual Testing:
-1. Register a new account at http://localhost:3000/register
-2. Login with credentials
-3. Select a user to chat with
-4. Send encrypted messages
-
-## 🛠️ Troubleshooting
-
-### Port 5000 already in use:
-```powershell
-netstat -ano | Select-String ":5000"
-Stop-Process -Id <PID> -Force
-```
-
-### CORS errors:
-- Check `TRUSTED_ORIGINS` includes your frontend origin
-- Ensure `withCredentials: true` in frontend API calls
-- Verify CORS headers in backend response
-
-### Session not persisting:
-- Check browser allows cookies
-- Verify `SESSION_COOKIE_SAMESITE` setting
-- Ensure frontend uses `withCredentials: true`
-
-### Socket.IO connection fails:
-- Verify backend is running and accessible
-- Check Socket.IO CORS configuration
-- Ensure session cookie is being sent with connection
+### Frontend (React + Vite)
+1.  Navigate to `/frontend`.
+2.  Install dependencies: `npm install`.
+3.  Configure API endpoint:
+    - Copy `.env.example` to `.env`.
+    - Ensure `VITE_API_URL` points to your running backend (default: `http://localhost:5000`).
+4.  Start development server: `npm run dev`.
 
 ## 📁 Project Structure
 
-```
+```text
 messaging_app_capstone/
 ├── backend/
-│   ├── app.py              # Main Flask application
-│   ├── run.py              # Server entry point
-│   ├── config.py           # Configuration
-│   ├── db_models.py        # Database models
-│   ├── db_init.py          # Database initialization
-│   ├── utils.py            # Helper functions
-│   ├── requirements.txt    # Python dependencies
-│   ├── .env.sample         # Environment template
-│   └── crypto/             # Quantum crypto modules
-│       ├── bb84.py         # BB84 quantum key distribution
-│       ├── kyber.py        # Kyber KEM
-│       ├── dilithium.py    # Dilithium signatures
-│       └── quantum_service.py
+│   ├── app.py              # Main Entry Point
+│   ├── routes.py           # API Endpoints (Auth, Friends, Keys)
+│   ├── firebase_db.py      # Firestore & Storage Logic
+│   └── socket_events.py    # Real-time WebSocket Logic
 ├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/     # Reusable components
-│   │   ├── pages/          # Page components
-│   │   ├── services/       # API services
-│   │   ├── utils/          # Utilities
-│   │   └── App.js          # Root component
-│   ├── package.json
-│   └── .env
+│   ├── components/         # UI Components (Modals, Sidebars, Chat)
+│   ├── context/            # Auth & Socket State Management
+│   ├── services/           # CryptoEngine, API, StorageService
+│   └── types.ts            # Shared TypeScript Definitions
 └── README.md
 ```
 
-## 🔐 Security Features
-
-1. **Post-Quantum Cryptography:**
-   - BB84: Quantum key exchange simulation
-   - Kyber: Post-quantum key encapsulation
-   - Dilithium: Post-quantum digital signatures
-
-2. **Session Security:**
-   - HttpOnly cookies (prevents XSS)
-   - SameSite protection (prevents CSRF)
-   - Secure flag for HTTPS
-   - Server-side session storage
-
-3. **Transport Security:**
-   - CORS with credential support
-   - Socket.IO with session authentication
-   - Encrypted message payloads
-
-## ⚠️ Notes
-
-- Quantum crypto modules are **educational demonstrations** only
-- Not audited for production cryptographic use
-- For real deployments:
-  - Use production database (PostgreSQL, MySQL)
-  - Implement proper key management system
-  - Enable HTTPS/TLS everywhere
-  - Add rate limiting and input validation
-  - Use Redis for session storage at scale
+## ⚠️ Disclaimer
+This project is an **Educational/Research demonstration** of quantum-resistant algorithms. While it implements advanced PQC concepts, it has not undergone a formal cryptographic audit for production-level banking or government deployments.
 
 ## 📝 License
-
-Educational/Research project - check with your institution for licensing
+Research Project - MIT License / Educational Use.

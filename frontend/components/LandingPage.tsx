@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Smartphone, Lock, Globe, Zap, Users, ArrowRight, Menu, X, Check, CheckCircle, Server, Eye, FileKey, Moon, Sun } from 'lucide-react';
+import { Shield, Smartphone, Lock as LockIcon, Globe, Zap, Users, ArrowRight, Menu, X, Check, CheckCircle, Server, Eye, FileKey, Moon, Sun } from 'lucide-react';
 
 interface LandingPageProps {
   onNavigate: (page: 'login' | 'signup') => void;
@@ -22,21 +22,21 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white overflow-x-hidden font-sans selection:bg-teal-500 selection:text-white">
-      {/* Background Ambience */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-0 left-0 w-full h-[800px] bg-gradient-to-br from-teal-500/10 via-purple-500/10 to-transparent opacity-60 dark:opacity-40" />
-        <div className="absolute top-[20%] right-[10%] w-96 h-96 bg-purple-500/20 rounded-full blur-[100px] animate-pulse" />
-        <div className="absolute bottom-[20%] left-[10%] w-72 h-72 bg-teal-500/20 rounded-full blur-[80px]" />
-      </div>
+      {/* Stark Background */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-white dark:bg-black" />
+
+      {/* Grid Pattern overlay for tech feel */}
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03] dark:opacity-[0.05]"
+        style={{ backgroundImage: 'linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
       {/* Navigation */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg shadow-lg py-3' : 'bg-transparent py-5'}`}>
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 border-b border-transparent ${isScrolled ? 'bg-white dark:bg-black border-black/10 dark:border-white/10 py-3' : 'bg-transparent py-5'}`}>
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer group" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-purple-600 rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-teal-500/30 transition-all">
-              <Lock className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <div className="w-8 h-8 bg-emerald-500 flex items-center justify-center shadow-[2px_2px_0px_#000] dark:shadow-[2px_2px_0px_#fff] group-hover:translate-x-[1px] group-hover:translate-y-[1px] group-hover:shadow-[1px_1px_0px_#000] dark:group-hover:shadow-[1px_1px_0px_#fff] transition-all">
+              <LockIcon className="w-4 h-4 text-black" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-purple-600 dark:from-teal-400 dark:to-purple-400">AGES</span>
+            <span className="text-2xl font-black text-black dark:text-white tracking-tighter">AGES.</span>
           </div>
 
           {/* Desktop Nav */}
@@ -50,7 +50,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
             {/* Theme Toggle */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+              className="p-2 border-2 border-transparent hover:border-black dark:hover:border-white text-black dark:text-white transition-colors"
               aria-label="Toggle theme"
             >
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -58,13 +58,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
 
             <button
               onClick={() => onNavigate('login')}
-              className="px-5 py-2 rounded-full text-sm font-semibold border border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all"
+              className="px-6 py-2.5 font-bold border-2 border-black dark:border-white text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors"
             >
               Sign In
             </button>
             <button
               onClick={() => onNavigate('signup')}
-              className="px-5 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-lg shadow-teal-500/30 hover:shadow-teal-500/50 hover:scale-105 transition-all"
+              className="px-6 py-2.5 font-bold bg-emerald-500 text-black border-2 border-black dark:border-white shadow-[4px_4px_0px_#000] dark:shadow-[4px_4px_0px_#fff] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000] dark:hover:shadow-[2px_2px_0px_#fff] transition-all"
             >
               Get Started
             </button>
@@ -79,15 +79,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/95 backdrop-blur-xl flex flex-col p-8 animate-fade-in">
-          <div className="flex justify-between items-center mb-12">
-            <span className="text-xl font-bold text-white">Menu</span>
-            <button onClick={() => setMobileMenuOpen(false)}><X className="w-6 h-6 text-white" /></button>
+        <div className="fixed inset-0 z-[60] bg-white dark:bg-black flex flex-col p-8 animate-fade-in border-4 border-black dark:border-white m-4 shadow-[16px_16px_0px_#10b981]">
+          <div className="flex justify-between items-center mb-12 border-b-4 border-black dark:border-white pb-4">
+            <span className="text-2xl font-black text-black dark:text-white uppercase tracking-tighter">Menu</span>
+            <button onClick={() => setMobileMenuOpen(false)} className="bg-black dark:bg-white p-2">
+              <X className="w-6 h-6 text-white dark:text-black" />
+            </button>
           </div>
-          <div className="flex flex-col gap-6 text-center">
-            <a href="#features" onClick={() => setMobileMenuOpen(false)} className="text-xl font-medium text-white/80">Features</a>
-            <a href="#security" onClick={() => setMobileMenuOpen(false)} className="text-xl font-medium text-white/80">Security</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="text-xl font-medium text-white/80">How It Works</a>
+          <div className="flex flex-col gap-8 text-center">
+            <a href="#features" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-black text-black dark:text-white uppercase tracking-tight hover:text-emerald-500 transition-colors">Features</a>
+            <a href="#security" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-black text-black dark:text-white uppercase tracking-tight hover:text-emerald-500 transition-colors">Security</a>
+            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="text-2xl font-black text-black dark:text-white uppercase tracking-tight hover:text-emerald-500 transition-colors">How It Works</a>
+
+            <div className="h-0.5 bg-black dark:bg-white opacity-10 my-4" />
 
             {/* Theme Toggle for Mobile */}
             <button
@@ -95,17 +99,27 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
                 setTheme(theme === 'dark' ? 'light' : 'dark');
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center justify-center gap-2 text-xl font-medium text-white/80"
+              className="flex items-center justify-center gap-3 text-xl font-bold text-black dark:text-white uppercase tracking-widest"
             >
               {theme === 'dark' ? (
-                <><Sun className="w-5 h-5" /> Light Mode</>
+                <><Sun className="w-6 h-6" /> Light Mode</>
               ) : (
-                <><Moon className="w-5 h-5" /> Dark Mode</>
+                <><Moon className="w-6 h-6" /> Dark Mode</>
               )}
             </button>
 
-            <button onClick={() => { setMobileMenuOpen(false); onNavigate('login'); }} className="text-xl font-medium text-teal-400">Sign In</button>
-            <button onClick={() => { setMobileMenuOpen(false); onNavigate('signup'); }} className="py-3 bg-teal-500 rounded-xl text-white font-bold">Get Started</button>
+            <button
+              onClick={() => { setMobileMenuOpen(false); onNavigate('login'); }}
+              className="text-2xl font-black text-emerald-500 uppercase border-2 border-emerald-500 py-4 hover:bg-emerald-500 hover:text-black transition-all"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => { setMobileMenuOpen(false); onNavigate('signup'); }}
+              className="py-5 bg-emerald-500 text-black font-black uppercase tracking-widest border-2 border-black dark:border-white shadow-[6px_6px_0px_#000] dark:shadow-[6px_6px_0px_#fff]"
+            >
+              Get Started
+            </button>
           </div>
         </div>
       )}
@@ -114,33 +128,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 px-6 overflow-hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-12 md:gap-20">
           <div className="flex-1 text-center md:text-left z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-bold mb-6 animate-fade-in">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-              v2.0 Now Available
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-bold mb-8 uppercase tracking-widest animate-fade-in">
+              <span className="w-2 h-2 bg-emerald-500 animate-pulse"></span>
+              PQC & QKD SECURED
             </div>
 
-            <h1 className="text-5xl md:text-7xl font-bold leading-tight tracking-tight mb-6 animate-slide-in-left">
-              Private Messaging.<br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-teal-500 to-purple-600">Without Phone Numbers.</span>
+            <h1 className="text-6xl md:text-8xl font-black leading-[0.9] tracking-tighter mb-8 animate-slide-in-left text-black dark:text-white">
+              ZERO<br />
+              COMPROMISE.
             </h1>
 
-            <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-8 max-w-xl mx-auto md:mx-0 leading-relaxed animate-slide-in-left" style={{ animationDelay: '100ms' }}>
-              Connect with friends using usernames. Your conversations are end-to-end encrypted and completely private. No data mining, ever.
+            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 mb-10 max-w-xl mx-auto md:mx-0 font-medium animate-slide-in-left leading-snug" style={{ animationDelay: '100ms' }}>
+              True post-quantum messaging. No phone numbers. No analytics. Physics-based security for a paranoid world.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-center md:justify-start animate-slide-in-left" style={{ animationDelay: '200ms' }}>
-              <div className="relative w-full sm:w-auto">
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  className="w-full sm:w-72 px-6 py-4 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-xl shadow-slate-200/50 dark:shadow-none"
-                />
-              </div>
               <button
                 onClick={() => onNavigate('signup')}
-                className="w-full sm:w-auto px-8 py-4 rounded-full bg-gradient-to-r from-teal-500 to-teal-600 text-white font-bold shadow-xl shadow-teal-500/30 hover:scale-105 transition-transform flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-10 py-5 bg-emerald-500 text-black font-black text-lg border-2 border-black dark:border-white shadow-[6px_6px_0px_#000] dark:shadow-[6px_6px_0px_#fff] hover:translate-x-[3px] hover:translate-y-[3px] hover:shadow-[3px_3px_0px_#000] dark:hover:shadow-[3px_3px_0px_#fff] transition-all flex items-center justify-center gap-3 uppercase"
               >
-                Get Started Free <ArrowRight className="w-4 h-4" />
+                Deploy Now <ArrowRight className="w-5 h-5" />
               </button>
             </div>
 
@@ -157,222 +164,191 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
           </div>
 
           <div className="flex-1 w-full relative z-10 animate-fade-in" style={{ animationDelay: '300ms' }}>
-            <div className="relative mx-auto w-full max-w-[360px] md:max-w-md aspect-[9/19] bg-slate-900 rounded-[3rem] border-8 border-slate-800 shadow-2xl overflow-hidden ring-1 ring-white/10">
-              {/* Fake App UI */}
-              <div className="absolute inset-0 bg-slate-900 flex flex-col">
-                <div className="h-24 bg-slate-800/50 backdrop-blur-md border-b border-white/5 flex items-end pb-4 px-6 gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500" />
-                  <div className="flex-1 h-2 bg-slate-700 rounded-full w-1/2 mb-2" />
+            <div className="relative mx-auto w-full max-w-[360px] md:max-w-md aspect-[9/19] bg-white dark:bg-black border-4 border-black dark:border-white shadow-[12px_12px_0px_#000] dark:shadow-[12px_12px_0px_#fff] overflow-hidden">
+              {/* Fake App UI - Brutalist */}
+              <div className="absolute inset-0 flex flex-col">
+                <div className="h-20 bg-black dark:bg-white text-white dark:text-black border-b-4 border-black dark:border-white flex items-end pb-4 px-6 gap-4">
+                  <div className="font-black text-2xl uppercase tracking-tighter">SECURE.LINK</div>
                 </div>
-                <div className="flex-1 p-4 space-y-4">
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-700 shrink-0" />
-                    <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none max-w-[80%]">
-                      <div className="w-32 h-2 bg-slate-600 rounded-full mb-2" />
-                      <div className="w-24 h-2 bg-slate-700 rounded-full" />
+                <div className="flex-1 p-4 space-y-4 bg-gray-50 dark:bg-black">
+                  <div className="flex gap-0 flex-col">
+                    <div className="bg-black dark:bg-white text-white dark:text-black p-4 border-2 border-black dark:border-white self-start max-w-[85%] relative">
+                      <div className="font-mono text-[10px] opacity-70 mb-1 uppercase tracking-wider">KYBER_CHEM_ESTABLISHED</div>
+                      <div className="w-32 h-2.5 bg-current opacity-20 mb-2" />
+                      <div className="w-24 h-2.5 bg-current opacity-20" />
                     </div>
                   </div>
-                  <div className="flex gap-3 flex-row-reverse">
-                    <div className="bg-teal-600 p-3 rounded-2xl rounded-tr-none max-w-[80%]">
-                      <div className="w-40 h-2 bg-white/40 rounded-full mb-2" />
-                      <div className="w-20 h-2 bg-white/30 rounded-full" />
+                  <div className="flex gap-0 flex-col">
+                    <div className="bg-emerald-500 text-black p-4 border-2 border-black dark:border-white self-end max-w-[85%] relative">
+                      <div className="font-mono text-[10px] opacity-70 mb-1 uppercase tracking-wider">BB84_QKD_SYNCED</div>
+                      <div className="w-40 h-2.5 bg-black opacity-20 mb-2" />
+                      <div className="w-20 h-2.5 bg-black opacity-20" />
                     </div>
                   </div>
-                  {/* Floating Elements */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/10 backdrop-blur-xl p-4 rounded-xl border border-white/20 shadow-xl flex items-center gap-3 animate-bounce-soft">
-                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <Lock className="w-5 h-5 text-green-400" />
+                  {/* Floating Brutalist Card */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black dark:bg-white text-white dark:text-black p-4 border-4 border-black dark:border-white shadow-[8px_8px_0px_#10b981] flex items-center gap-4 animate-bounce-soft">
+                    <div className="w-10 h-10 bg-emerald-500 flex items-center justify-center">
+                      <LockIcon className="w-6 h-6 text-black" />
                     </div>
                     <div>
-                      <div className="text-white text-xs font-bold">End-to-End Encrypted</div>
-                      <div className="text-white/60 text-[10px]">Your chat is secure</div>
+                      <div className="text-sm font-black uppercase tracking-tight">QKD Secured</div>
+                      <div className="font-mono text-[10px] opacity-70 block">Eavesdropping impossible</div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            {/* Decorative Glow behind phone */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-teal-500/20 blur-[80px] -z-10 rounded-full" />
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-24 bg-slate-50 dark:bg-slate-900/50">
+      <section id="features" className="py-24 bg-white dark:bg-black border-y-2 border-black dark:border-white">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything you need for secure messaging</h2>
-            <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
-              Powerful features designed with privacy in mind. We don't just encrypt your data; we ensure it stays yours.
-            </p>
+          <div className="text-left mb-16 border-b-8 border-emerald-500 pb-8 inline-block">
+            <h2 className="text-5xl md:text-6xl font-black uppercase tracking-tighter">System Specs.</h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0 border-2 border-black dark:border-white bg-white dark:bg-black overflow-hidden shadow-[12px_12px_0px_#10b981]">
             <FeatureCard
-              icon={<Shield className="w-8 h-8 text-teal-500" />}
+              icon={<Shield className="w-10 h-10" />}
               title="End-to-End Encryption"
-              description="Messages are encrypted on your device and can only be read by the recipient."
+              description="Mathematical & physical guarantees. Zero data in transit visibility."
             />
             <FeatureCard
-              icon={<Smartphone className="w-8 h-8 text-purple-500" />}
-              title="No Phone Numbers"
-              description="Sign up with just a username. Keep your personal phone number private."
+              icon={<Smartphone className="w-10 h-10" />}
+              title="Zero Phone Numbers"
+              description="Complete anonymity. Connect via cryptographic identity only."
             />
             <FeatureCard
-              icon={<Zap className="w-8 h-8 text-orange-500" />}
-              title="Instant & Fast"
-              description="Built on a modern edge network for low-latency messaging anywhere."
+              icon={<Zap className="w-10 h-10" />}
+              title="Low Latency"
+              description="Websocket protocol optimizations over quantum channels."
             />
             <FeatureCard
-              icon={<Globe className="w-8 h-8 text-blue-500" />}
-              title="Cross-Platform"
-              description="Seamlessly sync your conversations across mobile, web, and desktop."
+              icon={<Globe className="w-10 h-10" />}
+              title="Post-Quantum Ready"
+              description="CRYSTALS-Kyber KEM and Dilithium signatures built-in."
             />
             <FeatureCard
-              icon={<Users className="w-8 h-8 text-pink-500" />}
-              title="Secure Groups"
-              description="Create encrypted group chats with friends, family, or teams."
+              icon={<Users className="w-10 h-10" />}
+              title="Distributed Security"
+              description="Decentralized key management architecture."
             />
             <FeatureCard
-              icon={<Lock className="w-8 h-8 text-green-500" />}
+              icon={<LockIcon className="w-10 h-10" />}
               title="Zero Access"
-              description="We can't read your messages even if we wanted to. Zero knowledge architecture."
+              description="We physically cannot read your data. Period."
             />
           </div>
         </div>
       </section>
 
-      {/* Security Section */}
-      <section id="security" className="py-24 bg-slate-900 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-teal-900/20"></div>
-        <div className="max-w-7xl mx-auto px-6 relative z-10 flex flex-col md:flex-row items-center gap-16">
-          <div className="flex-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold mb-6">
-              <Shield className="w-3 h-3" /> Bank-Level Security
+      {/* How It Works Section */}
+      <section id="how-it-works" className="py-24 bg-white dark:bg-black overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row items-start gap-16">
+            <div className="md:w-1/3">
+              <div className="inline-block bg-black dark:bg-white text-white dark:text-black px-4 py-1 text-xs font-black uppercase tracking-widest mb-6">
+                Protocol.02
+              </div>
+              <h2 className="text-5xl font-black uppercase tracking-tighter mb-8 leading-none text-black dark:text-white">
+                How It<br />Operates.
+              </h2>
+              <p className="text-slate-600 dark:text-slate-400 font-medium mb-8">
+                A hybrid approach combining the physical security of Quantum Key Distribution with the mathematical strength of Post-Quantum Cryptography.
+              </p>
+              <div className="w-full h-1 bg-emerald-500" />
             </div>
-            <h2 className="text-4xl font-bold mb-6">Your privacy is our priority</h2>
-            <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-              AGES uses the same encryption technology trusted by governments and financial institutions worldwide. Your messages are locked with a key that only you and the recipient have.
-            </p>
-            <ul className="space-y-4">
+
+            <div className="flex-1 space-y-12">
               {[
-                "End-to-End Encryption (E2EE)",
-                "Zero Access Architecture",
-                "Perfect Forward Secrecy",
-                "Open Source Protocols"
+                {
+                  step: "01",
+                  title: "Identity Initialization",
+                  desc: "Generate your local cryptographic identity. No phone numbers or emails are stored on our servers. Your private key never leaves your device."
+                },
+                {
+                  step: "02",
+                  title: "Quantum Key Exchange",
+                  desc: "When connecting to a peer, a quantum-secure channel is established using Kyber KEM. We verify the link using Dilithium digital signatures."
+                },
+                {
+                  step: "03",
+                  title: "Encrypted Transmission",
+                  desc: "Messages are fragmented and encrypted locally. Even if the backend node is compromised, your data remains an unreadable stream of entropy."
+                }
               ].map((item, i) => (
-                <li key={i} className="flex items-center gap-3 text-slate-300">
-                  <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-green-400" />
+                <div key={i} className="flex gap-8 group">
+                  <div className="text-4xl font-black text-emerald-500 opacity-30 group-hover:opacity-100 transition-opacity">
+                    {item.step}
+                  </div>
+                  <div className="pt-1">
+                    <h4 className="text-2xl font-black uppercase tracking-tight mb-3 text-black dark:text-white">{item.title}</h4>
+                    <p className="text-slate-600 dark:text-slate-400 font-medium leading-relaxed max-w-xl">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="security" className="py-24 bg-emerald-500 text-black border-b-2 border-black dark:border-white relative">
+        <div className="max-w-7xl mx-auto px-6 relative z-10 flex flex-col md:flex-row items-stretch gap-0 border-2 border-black bg-white dark:bg-black dark:border-white shadow-[12px_12px_0px_#000] dark:shadow-[12px_12px_0px_#fff]">
+          <div className="flex-1 p-12 border-b-2 md:border-b-0 md:border-r-2 border-black dark:border-white">
+            <h2 className="text-5xl font-black mb-6 uppercase tracking-tighter text-black dark:text-white">The Threat Model</h2>
+            <p className="text-slate-600 dark:text-slate-400 text-lg mb-8 font-medium">
+              We assume the network is already compromised. Data is encrypted using algorithms resistant to future quantum computing attacks (HNDL mitigation).
+            </p>
+            <ul className="space-y-4 font-mono text-sm uppercase text-black dark:text-white">
+              {[
+                "Kyber KEM Encapsulation",
+                "Dilithium Signatures",
+                "QBER Threat Detection",
+                "Decoy-State Protocol"
+              ].map((item, i) => (
+                <li key={i} className="flex items-center gap-4">
+                  <div className="w-6 h-6 bg-emerald-500 flex items-center justify-center border-2 border-black dark:border-white">
+                    <Check className="w-4 h-4 text-black" />
                   </div>
                   {item}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="flex-1">
-            <div className="relative bg-white/5 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl">
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-teal-500/20 rounded-full blur-3xl"></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-800/50 p-6 rounded-xl border border-white/5">
-                  <Server className="w-8 h-8 text-teal-400 mb-4" />
-                  <h4 className="font-bold mb-2">No Data Mining</h4>
-                  <p className="text-xs text-slate-400">We don't sell your data or show ads. Ever.</p>
-                </div>
-                <div className="bg-slate-800/50 p-6 rounded-xl border border-white/5">
-                  <Eye className="w-8 h-8 text-purple-400 mb-4" />
-                  <h4 className="font-bold mb-2">No Tracking</h4>
-                  <p className="text-xs text-slate-400">We don't track your location or activity.</p>
-                </div>
-                <div className="col-span-2 bg-slate-800/50 p-6 rounded-xl border border-white/5 flex items-center gap-6">
-                  <FileKey className="w-10 h-10 text-orange-400" />
-                  <div>
-                    <h4 className="font-bold">Your Keys, Your Data</h4>
-                    <p className="text-xs text-slate-400 mt-1">Private keys are generated on your device and never leave it.</p>
-                  </div>
-                </div>
-              </div>
+          <div className="flex-1 bg-black text-emerald-500 p-12 flex flex-col justify-center">
+            <div className="font-mono text-sm leading-relaxed">
+              <span className="text-red-500 font-bold">WARNING:</span> CLASSICAL ENCRYPTION IS OBSOLETE.<br /><br />
+              Shor's Algorithm threatens RSA/ECC. Our implementation utilizes lattice-based cryptography, heavily tested under the NIST PQC standardization process, rendering quantum decryption attempts mathematically infeasible.
+              <br /><br />
+              <span className="text-white">STATUS: OVER-SECURED</span>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-24 bg-white dark:bg-slate-900">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Get started in minutes</h2>
-            <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
-              Creating your secure messaging account is fast, easy, and requires no personal information.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-12 relative">
-            {/* Connector Line (Desktop) */}
-            <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-teal-500/20 via-purple-500/20 to-teal-500/20 z-0"></div>
-
-            <StepCard
-              number="1"
-              title="Create Account"
-              description="Sign up with a unique username. No phone number or real name required."
-            />
-            <StepCard
-              number="2"
-              title="Add Friends"
-              description="Share your username or QR code to connect with friends securely."
-            />
-            <StepCard
-              number="3"
-              title="Start Chatting"
-              description="Send messages, photos, and files with total privacy and encryption."
-            />
-          </div>
-
-          <div className="mt-16 text-center">
-            <button
-              onClick={() => onNavigate('signup')}
-              className="px-10 py-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold hover:scale-105 transition-transform shadow-xl"
-            >
-              Join AGES Now
-            </button>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-white py-12 border-t border-slate-800">
+      <footer className="bg-black text-white py-12 border-t-4 border-emerald-500">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-4 gap-8 mb-12">
-            <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Lock className="w-6 h-6 text-teal-500" />
-                <span className="text-2xl font-bold">AGES</span>
+          <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-12">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-emerald-500 flex items-center justify-center">
+                  <LockIcon className="w-5 h-5 text-black" />
+                </div>
+                <span className="text-3xl font-black uppercase tracking-tighter">AGES.</span>
               </div>
-              <p className="text-slate-400 max-w-sm">
-                Next-generation secure messaging platform. Privacy is a right, not a feature.
+              <p className="text-slate-400 font-mono text-xs uppercase max-w-sm">
+                Cryptographic Messaging Interface.<br />Version 2.0 / Secure Mode
               </p>
             </div>
-            <div>
-              <h4 className="font-bold mb-4">Product</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><a href="#" className="hover:text-teal-400 transition-colors">Download</a></li>
-                <li><a href="#features" className="hover:text-teal-400 transition-colors">Features</a></li>
-                <li><a href="#security" className="hover:text-teal-400 transition-colors">Security</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold mb-4">Company</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><a href="#" className="hover:text-teal-400 transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-teal-400 transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-teal-400 transition-colors">Terms of Service</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-slate-500 text-sm">
-            <p>© 2025 AGES. All rights reserved.</p>
-            <div className="flex gap-6">
-              <span>Made with ❤️ for Privacy</span>
+            <div className="text-right">
+              <button
+                onClick={() => window.scrollTo(0, 0)}
+                className="px-6 py-3 border-2 border-white hover:bg-emerald-500 hover:text-black hover:border-emerald-500 font-bold uppercase transition-colors"
+              >
+                Return to Top
+              </button>
             </div>
           </div>
         </div>
@@ -382,24 +358,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
 };
 
 const FeatureCard: React.FC<{ icon: React.ReactNode; title: string; description: string }> = ({ icon, title, description }) => (
-  <div className="p-8 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none hover:translate-y-[-5px] transition-transform duration-300">
-    <div className="w-14 h-14 rounded-xl bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center mb-6">
+  <div className="p-10 bg-white dark:bg-black border border-black/10 dark:border-white/10 hover:bg-emerald-500 dark:hover:bg-emerald-500 transition-all duration-300 group relative overflow-hidden">
+    <div className="absolute top-0 left-0 w-2 h-0 bg-black dark:bg-white group-hover:h-full transition-all duration-300" />
+    <div className="mb-8 text-emerald-500 group-hover:text-black dark:group-hover:text-black transition-colors">
       {icon}
     </div>
-    <h3 className="text-xl font-bold mb-3">{title}</h3>
-    <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+    <h3 className="text-2xl font-black mb-4 uppercase tracking-tighter text-black dark:text-white group-hover:text-black dark:group-hover:text-black transition-colors">{title}</h3>
+    <p className="text-slate-600 dark:text-slate-400 group-hover:text-black font-medium leading-relaxed transition-colors">
       {description}
     </p>
-  </div>
-);
-
-const StepCard: React.FC<{ number: string; title: string; description: string }> = ({ number, title, description }) => (
-  <div className="relative z-10 flex flex-col items-center text-center group">
-    <div className="w-24 h-24 rounded-full bg-white dark:bg-slate-800 border-4 border-slate-100 dark:border-slate-700 flex items-center justify-center mb-6 shadow-xl group-hover:scale-110 transition-transform duration-300">
-      <span className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-teal-500 to-purple-600">{number}</span>
-    </div>
-    <h3 className="text-xl font-bold mb-3">{title}</h3>
-    <p className="text-slate-500 dark:text-slate-400 max-w-xs">{description}</p>
   </div>
 );
 

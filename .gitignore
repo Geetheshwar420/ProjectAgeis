@@ -13,6 +13,8 @@
 *.pem
 *.cert
 secrets/
+project-ageis-firebase-adminsdk-*.json
+firebase-credentials.json
 
 # ============================================================================
 # OS & EDITOR FILES
@@ -154,7 +156,6 @@ poetry.lock
 uploads/
 user_data/
 *.temp
-
 # ============================================================================
 # MISCELLANEOUS
 # ============================================================================
@@ -165,4 +166,4 @@ New folder/
 test_output.txt
 *.orig
 *.rej
-docs/
+# docs/

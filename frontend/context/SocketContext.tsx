@@ -48,7 +48,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, curren
         console.log('Creating new socket connection to:', socketUrl);
         const newSocket = io(socketUrl, {
             withCredentials: true,
-            transports: ['websocket', 'polling'],
+            transports: ['polling'],
         });
 
         newSocket.on('connect', () => {

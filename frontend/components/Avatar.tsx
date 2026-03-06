@@ -9,13 +9,13 @@ interface AvatarProps {
   showStatus?: boolean;
 }
 
-const Avatar: React.FC<AvatarProps> = ({ 
-  src, 
-  alt, 
-  size = 'md', 
-  status, 
-  className = '', 
-  showStatus = true 
+const Avatar: React.FC<AvatarProps> = ({
+  src,
+  alt,
+  size = 'md',
+  status,
+  className = '',
+  showStatus = true
 }) => {
   const sizeClasses = {
     sm: 'w-8 h-8',
@@ -36,11 +36,11 @@ const Avatar: React.FC<AvatarProps> = ({
       <img
         src={src}
         alt={alt}
-        className={`${sizeClasses[size]} rounded-full object-cover border-2 border-white dark:border-slate-800 shadow-sm`}
+        className={`${sizeClasses[size]} rounded-none object-cover border-2 border-black dark:border-white bg-white dark:bg-black p-0.5`}
       />
       {showStatus && status && (
         <span
-          className={`absolute bottom-0 right-0 block w-3.5 h-3.5 rounded-full ring-2 ring-white dark:ring-slate-800 ${statusColor[status]} ${status === 'online' ? 'animate-pulse' : ''}`}
+          className={`absolute -bottom-1 -right-1 block w-4 h-4 rounded-none border-2 border-black dark:border-white shadow-[2px_2px_0px_#000] dark:shadow-[2px_2px_0px_#fff] ${statusColor[status]} ${status === 'online' ? 'animate-pulse' : ''}`}
         />
       )}
     </div>
