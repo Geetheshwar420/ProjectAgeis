@@ -21,3 +21,7 @@ class Config:
     SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
     SESSION_COOKIE_HTTPONLY = True
     CORS_HEADERS = 'Content-Type'
+    
+    # Allowed CORS Origins
+    _origins = os.getenv('TRUSTED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173')
+    TRUSTED_ORIGINS = [orig.strip() for orig in _origins.split(',') if orig.strip()]

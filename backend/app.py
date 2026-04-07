@@ -31,6 +31,9 @@ import logging
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# Enable CORS for the entire application, allowing credentials
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": app.config['TRUSTED_ORIGINS']}})
+
 # Configure SocketIO with appropriate async mode
 # Use gevent ONLY if it was successfully loaded and patched
 async_mode = 'gevent' if _async_available else 'threading'
