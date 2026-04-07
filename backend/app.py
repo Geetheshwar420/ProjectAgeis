@@ -4,19 +4,22 @@ import sys
 # Force Firestore to use HTTP instead of gRPC to prevent Eventlet conflicts
 os.environ["GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP"] = "true"
 
-# Gevent monkey patching MUST happen before any other imports
-# Only patch if not already patched by Gunicorn
+# Gevent monkey patching — only when running under Gunicorn (production)
+# When running locally via `python app.py`, skip patching to avoid Firestore SSL conflicts
 _async_available = False
+_running_under_gunicorn = 'gunicorn' in os.environ.get('SERVER_SOFTWARE', '') or 'gunicorn' in sys.modules
 try:
     import gevent
     from gevent import monkey
-    # Check if already patched by gunicorn worker
-    if not monkey.is_module_patched('os'):
-        monkey.patch_all()
-        print("[SERVER] Gevent monkey patching applied successfully.")
+    if _running_under_gunicorn:
+        if not monkey.is_module_patched('os'):
+            monkey.patch_all()
+            print("[SERVER] Gevent monkey patching applied (Gunicorn detected).")
+        else:
+            print("[SERVER] Gevent already patched by Gunicorn.")
+        _async_available = True
     else:
-        print("[SERVER] Gevent already patched by Gunicorn.")
-    _async_available = True
+        print("[SERVER] Running locally — skipping gevent monkey patch for Firestore compatibility.")
 except ImportError:
     print("[SERVER] Gevent not found, skipping monkey patch.")
 
@@ -31,8 +34,9 @@ import logging
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Enable CORS for the entire application, allowing credentials
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": app.config['TRUSTED_ORIGINS']}})
+# Enable CORS — strip trailing slashes from origins for exact match compliance
+cors_origins = [o.rstrip('/') for o in app.config['TRUSTED_ORIGINS']]
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": cors_origins}})
 
 # Configure SocketIO with appropriate async mode
 # Use gevent ONLY if it was successfully loaded and patched
@@ -77,16 +81,6 @@ def add_security_headers(response):
         )
     return response
 
-# Standard Flask-CORS setup
-trusted_origins = [
-    "https://project-ageis.vercel.app",
-    "https://project-ageis-fmhxrlnr4-geetheshwar-linuxs-projects.vercel.app"
-]
-
-if os.getenv('FLASK_ENV') != 'production':
-    CORS(app, supports_credentials=True, origins=["*"])
-else:
-    CORS(app, supports_credentials=True, origins=trusted_origins)
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
