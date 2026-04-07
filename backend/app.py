@@ -4,21 +4,21 @@ import sys
 # Force Firestore to use HTTP instead of gRPC to prevent Eventlet conflicts
 os.environ["GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP"] = "true"
 
-# Eventlet monkey patching MUST happen before any other imports
-# Only patch if not already patched by Gunicorn and not on Windows (unless in production)
-_eventlet_available = False
-if os.name != 'nt' or os.getenv('FLASK_ENV') == 'production':
-    try:
-        import eventlet
-        from eventlet import patcher
-        if not patcher.is_monkey_patched('os'):
-            eventlet.monkey_patch()
-            print("[SERVER] Eventlet monkey patching applied successfully.")
-        else:
-            print("[SERVER] Eventlet already patched by Gunicorn/Supervisor.")
-        _eventlet_available = True
-    except ImportError:
-        print("[SERVER] Eventlet not found, skipping monkey patch.")
+# Gevent monkey patching MUST happen before any other imports
+# Only patch if not already patched by Gunicorn
+_async_available = False
+try:
+    import gevent
+    from gevent import monkey
+    # Check if already patched by gunicorn worker
+    if not monkey.is_module_patched('os'):
+        monkey.patch_all()
+        print("[SERVER] Gevent monkey patching applied successfully.")
+    else:
+        print("[SERVER] Gevent already patched by Gunicorn.")
+    _async_available = True
+except ImportError:
+    print("[SERVER] Gevent not found, skipping monkey patch.")
 
 from flask import Flask, request
 from flask_socketio import SocketIO
