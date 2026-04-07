@@ -50,6 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isLoading, setIsLoading] = useState(true);
 
     const checkAuth = async () => {
+        const startTime = Date.now();
         try {
             const response = await api.get('/me');
             if (response.status === 200 && response.data.username) {
@@ -61,6 +62,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } catch {
             setUser(null);
         } finally {
+            const elapsed = Date.now() - startTime;
+            const minDelay = 1500; // 1.5 seconds forced delay for premium loading experience
+            if (elapsed < minDelay) {
+                await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+            }
             setIsLoading(false);
         }
     };

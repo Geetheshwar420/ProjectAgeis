@@ -312,13 +312,13 @@ const AppContent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white font-sans transition-colors duration-500 overflow-hidden">
-        <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03] dark:opacity-[0.05]"
+      <div className="flex h-screen flex-col items-center justify-center bg-[#0f172a] text-white font-sans overflow-hidden">
+        <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.05]"
           style={{ backgroundImage: 'linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
         
         <div className="relative mb-10 z-10">
           <div className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20 blur-2xl" />
-          <div className="relative z-10 w-24 h-24 bg-white dark:bg-[#0f172a] rounded-xl p-4 border-2 border-black dark:border-white shadow-[8px_8px_0px_#10b981]">
+          <div className="relative z-10 w-24 h-24 bg-[#0f172a] rounded-xl p-4 border-2 border-white shadow-[8px_8px_0px_#10b981]">
             <img src="/pwa-512x512.png" alt="AGIES Logo" className="w-full h-full object-contain" />
           </div>
         </div>
