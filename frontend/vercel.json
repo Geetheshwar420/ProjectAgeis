@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "config": {
-    "distDir": "dist"
-  },
   "routes": [
     {
       "src": "/manifest.webmanifest",
