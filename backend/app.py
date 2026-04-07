@@ -3,6 +3,7 @@ import sys
 
 # Eventlet monkey patching MUST happen before any other imports
 # Only patch if not already patched by Gunicorn and not on Windows (unless in production)
+_eventlet_available = False
 if os.name != 'nt' or os.getenv('FLASK_ENV') == 'production':
     try:
         import eventlet
@@ -12,6 +13,7 @@ if os.name != 'nt' or os.getenv('FLASK_ENV') == 'production':
             print("[SERVER] Eventlet monkey patching applied successfully.")
         else:
             print("[SERVER] Eventlet already patched by Gunicorn/Supervisor.")
+        _eventlet_available = True
     except ImportError:
         print("[SERVER] Eventlet not found, skipping monkey patch.")
 
@@ -27,8 +29,8 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Configure SocketIO with appropriate async mode
-# Use eventlet on Linux/Render, but default to threading on Windows for local dev
-async_mode = 'eventlet' if (os.name != 'nt' or os.getenv('FLASK_ENV') == 'production') else 'threading'
+# Use eventlet ONLY if it was successfully loaded and patched
+async_mode = 'eventlet' if _eventlet_available else 'threading'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
 
 # Register Blueprints

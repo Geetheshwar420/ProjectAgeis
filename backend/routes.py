@@ -115,60 +115,8 @@ def upload_file():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-from services import quantum_service
+# Removed redundant prepare_message route. Crypto is now handled on the frontend.
 
-@api.route('/prepare_message', methods=['POST'])
-def prepare_message():
-    if 'username' not in session:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    data = request.json
-    sender_id = session['username']
-    recipient_id = data.get('recipient_id')
-    message = data.get('message')
-
-    if not recipient_id or not message:
-        return jsonify({"error": "Recipient ID and message required"}), 400
-
-    try:
-        if sender_id not in quantum_service.user_keypairs:
-            quantum_service.generate_user_keypairs(sender_id)
-        if recipient_id not in quantum_service.user_keypairs:
-            quantum_service.generate_user_keypairs(recipient_id)
-
-        exchange_result = quantum_service.initiate_quantum_key_exchange(sender_id, recipient_id)
-        session_id = exchange_result['session_id']
-
-        sess_info = quantum_service.get_session_info(session_id)
-        if not sess_info.get('has_session_key'):
-            if not sess_info.get('has_kyber_secret'):
-                quantum_service.perform_kyber_encapsulation(session_id, recipient_id)
-            quantum_service.derive_session_key(session_id)
-
-        msg_bytes = message.encode('utf-8')
-        encrypted_data = quantum_service.encrypt_message(session_id, msg_bytes)
-
-        if encrypted_data.get('status') == 'failed':
-            return jsonify({"error": "Encryption failed", "details": encrypted_data.get('error')}), 500
-
-        ciphertext = encrypted_data['ciphertext']
-        sign_result = quantum_service.sign_message(sender_id, ciphertext.encode('utf-8'))
-
-        if sign_result.get('status') == 'failed':
-            return jsonify({"error": "Signing failed", "details": sign_result.get('error')}), 500
-
-        return jsonify({
-            "encrypted_message": ciphertext,
-            "signature": sign_result['signature'],
-            "nonce": encrypted_data['nonce'],
-            "tag": encrypted_data['tag'],
-            "session_id": session_id,
-            "timestamp": encrypted_data['timestamp']
-        }), 200
-
-    except Exception as e:
-        logger.error("Error in prepare_message: %s", e)
-        return jsonify({"error": str(e)}), 500
 
 # ============================================================================
 # Friend & Social Routes (required by frontend)
