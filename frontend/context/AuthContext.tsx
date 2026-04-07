@@ -5,7 +5,7 @@ import { StorageService } from '../services/StorageService';
 
 interface User {
     username: string;
-    email: string;
+    email?: string;
     id?: string;
 }
 
@@ -13,7 +13,7 @@ interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    login: (user: User) => void;
+    login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
 }
@@ -28,6 +28,20 @@ export const useAuth = () => {
     return context;
 };
 
+async function ensureAndUploadKeys() {
+    let keys = await StorageService.getIdentityKeys();
+    if (!keys) {
+        keys = await CryptoService.generateIdentityKeys();
+        await StorageService.saveIdentityKeys(keys);
+    }
+    api.post('/update_keys', {
+        public_keys: {
+            kyber: keys.kyberPubKey,
+            dilithium: keys.dilithiumPubKey,
+        }
+    }).catch(() => {});
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -37,25 +51,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const response = await api.get('/me');
             if (response.status === 200 && response.data.username) {
                 setUser(response.data);
-
-                // Ensure identity keys exist locally (generate if missing)
-                let keys = await StorageService.getIdentityKeys();
-                if (!keys) {
-                    keys = await CryptoService.generateIdentityKeys();
-                    await StorageService.saveIdentityKeys(keys);
-                }
-                // Upload public keys to backend
-                api.post('/update_keys', {
-                    public_keys: {
-                        kyber: keys.kyberPubKey,
-                        dilithium: keys.dilithiumPubKey,
-                    }
-                }).catch(() => {});
+                ensureAndUploadKeys();
             } else {
                 setUser(null);
             }
-        } catch (error: any) {
-            console.log('Auth check failed:', error.response?.status);
+        } catch {
             setUser(null);
         } finally {
             setIsLoading(false);
@@ -66,31 +66,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         checkAuth();
     }, []);
 
-    const login = async (userData: User) => {
-        setUser(userData);
-
-        // Generate and persist identity keys on login
-        let keys = await StorageService.getIdentityKeys();
-        if (!keys) {
-            keys = await CryptoService.generateIdentityKeys();
-            await StorageService.saveIdentityKeys(keys);
+    const login = async (username: string, password: string) => {
+        const response = await api.post('/login', { username, password });
+        if (response.status === 200 && response.data.user) {
+            setUser(response.data.user);
+            ensureAndUploadKeys();
+        } else {
+            throw new Error(response.data?.error || 'Login failed');
         }
-        // Upload public keys to backend
-        api.post('/update_keys', {
-            public_keys: {
-                kyber: keys.kyberPubKey,
-                dilithium: keys.dilithiumPubKey,
-            }
-        }).catch(() => {});
     };
 
     const logout = async () => {
         try {
             await api.post('/logout');
-        } catch (error) {
-            console.error('Logout failed', error);
-        } finally {
-            // Wipe identity keys on logout
+        } catch { /* ignore */ } finally {
             await StorageService.clearIdentityKeys();
             setUser(null);
         }

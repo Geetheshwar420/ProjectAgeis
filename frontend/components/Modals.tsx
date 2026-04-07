@@ -356,12 +356,13 @@ const UserResultCard: React.FC<{
 interface InviteModalProps {
    isOpen: boolean;
    onClose: () => void;
-   currentUser: { username: string };
+   currentUser: { username?: string } | null;
 }
 
 export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, currentUser }) => {
    const [copied, setCopied] = useState(false);
-   const inviteLink = `https://ages.app/invite/${currentUser.username.replace('@', '')}`;
+   const username = currentUser?.username || 'guest';
+   const inviteLink = `https://ages.app/invite/${username.replace('@', '')}`;
 
    if (!isOpen) return null;
 

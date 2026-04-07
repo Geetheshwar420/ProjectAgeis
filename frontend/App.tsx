@@ -395,7 +395,7 @@ const AppContent: React.FC = () => {
       <QRCodeModal
         isOpen={isQRModalOpen}
         onClose={() => setIsQRModalOpen(false)}
-        currentUser={user || { id: 'guest', name: 'Guest', avatar: '' }}
+        currentUser={user || { username: 'guest', id: 'guest', name: 'Guest', avatar: '' }}
       />
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
@@ -406,7 +406,7 @@ const AppContent: React.FC = () => {
       <InviteModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        currentUser={user || { id: 'guest', name: 'Guest', avatar: '' }}
+        currentUser={user}
       />
       <ProfileModal
         isOpen={isProfileModalOpen}
