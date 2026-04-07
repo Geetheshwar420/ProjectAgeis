@@ -123,45 +123,69 @@ const AppContent: React.FC = () => {
 
     socket.on('new_message', async (message: any) => {
       // 1. Decrypt if needed
-      let decryptedContent = message.encrypted_message;
+      let decryptedContent = message.encrypted_message || message.content || '';
 
       if (user && message.sender_id !== user.username) {
         try {
           if (message.is_hybrid) {
             // HYBRID FLOW
-            const myKeys = await StorageService.getIdentityKeys();
-            const senderChat = chatsRef.current.find(c => c.id === message.sender_id);
-            let senderPubKey = senderChat?.participants[0]?.public_keys?.dilithium;
+            let myKeys = await StorageService.getIdentityKeys();
 
-            // FALLBACK: Fetch keys if missing locally
+            // Generate keys on-the-fly if missing
+            if (!myKeys) {
+              const newKeys = await CryptoService.generateIdentityKeys();
+              await StorageService.saveIdentityKeys(newKeys);
+              myKeys = newKeys;
+              // Upload to backend
+              api.post('/update_keys', {
+                public_keys: { kyber: newKeys.kyberPubKey, dilithium: newKeys.dilithiumPubKey }
+              }).catch(() => {});
+            }
+
+            let senderPubKey: string | undefined;
+
+            // Try local cache first
+            const senderChat = chatsRef.current.find(c => c.id === message.sender_id);
+            senderPubKey = senderChat?.participants[0]?.public_keys?.dilithium;
+
+            // Fetch from server if missing
             if (!senderPubKey) {
-              console.log(`Key mismatch or missing for ${message.sender_id}. Fetching from server...`);
               try {
                 const resp = await api.get(`/user/${message.sender_id}`);
                 senderPubKey = resp.data.public_keys?.dilithium;
               } catch (e) {
-                console.error("Failed to fetch sender public keys from server:", e);
+                console.error("Failed to fetch sender public keys:", e);
               }
             }
 
             if (myKeys && senderPubKey) {
-              decryptedContent = await CryptoService.hybridDecrypt(
-                message.encrypted_message,
-                myKeys.kyberSecKey,
-                senderPubKey,
-                user.username,
-                message.sender_id
-              );
+              try {
+                decryptedContent = await CryptoService.hybridDecrypt(
+                  message.encrypted_message,
+                  myKeys.kyberSecKey,
+                  senderPubKey,
+                  user.username,
+                  message.sender_id
+                );
+              } catch (decryptErr) {
+                console.error('hybridDecrypt failed:', decryptErr);
+                decryptedContent = '[Encrypted message - decryption failed]';
+              }
             } else {
-              console.warn("Keys missing for hybrid decryption (even after fetch). Content may stay encrypted.");
+              decryptedContent = '[Encrypted message - keys unavailable]';
             }
-          } else {
-            // LEGACY / FALLBACK FLOW
+          } else if (message.encrypted_message) {
+            // DETERMINISTIC FALLBACK: AES-GCM encrypted with shared key
             const sharedKey = await CryptoService.getSharedKeyForPeer(user.username, message.sender_id);
-            decryptedContent = await CryptoService.decryptMessageSafe(message.encrypted_message, sharedKey);
+            try {
+              decryptedContent = await CryptoService.decryptMessage(message.encrypted_message, sharedKey);
+            } catch {
+              decryptedContent = message.encrypted_message;
+            }
           }
         } catch (err) {
           console.error('Decryption failed for incoming message:', err);
+          decryptedContent = '[Encrypted message - error]';
         }
       }
 
@@ -176,7 +200,7 @@ const AppContent: React.FC = () => {
             timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
             status: MessageStatus.DELIVERED,
             mediaUrl: message.url,
-            fileName: message.content,
+            fileName: (message.type === MessageType.FILE || message.type === MessageType.IMAGE) ? message.content : undefined,
           };
           return {
             ...chat,
@@ -201,21 +225,9 @@ const AppContent: React.FC = () => {
     }
   }, [isAuthenticated]);
 
-  useEffect(() => {
-    // Check system preference
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-    }
-  }, []);
 
-  useEffect(() => {
-    const html = document.documentElement;
-    if (theme === 'dark') {
-      html.classList.add('dark');
-    } else {
-      html.classList.remove('dark');
-    }
-  }, [theme]);
+
+
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -239,8 +251,16 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleAcceptFriend = (friendUsername: string) => {
-    // Optimistically add to chats array if not there
+  const handleAcceptFriend = async (friendUsername: string) => {
+    if (chats.some(c => c.id === friendUsername)) return;
+
+    // Fetch public keys from server so hybrid encryption works
+    let publicKeys = {};
+    try {
+      const resp = await api.get(`/user/${friendUsername}`);
+      publicKeys = resp.data.public_keys || {};
+    } catch { /* Fallback: keys will be fetched on first message */ }
+
     setChats(prev => {
       if (prev.some(c => c.id === friendUsername)) return prev;
       return [...prev, {
@@ -248,9 +268,11 @@ const AppContent: React.FC = () => {
         participants: [{
           id: friendUsername,
           name: friendUsername,
+          username: friendUsername,
           avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + friendUsername,
-          status: 'online', // assume online for now or rely on socket
-          lastSeen: 'recently'
+          status: 'online',
+          lastSeen: 'recently',
+          public_keys: publicKeys
         }],
         messages: [],
         unreadCount: 0,
@@ -262,11 +284,7 @@ const AppContent: React.FC = () => {
 
   const activeChat = activeChatId ? chats.find(c => c.id === activeChatId) || null : null;
 
-  useEffect(() => {
-    if (activeChatId) {
-      console.log(`DEBUG: Chat selected: ${activeChatId}, Found object:`, activeChat);
-    }
-  }, [activeChatId, activeChat]);
+
 
   const handleSendMessage = (text: string, type: MessageType = MessageType.TEXT) => {
     if (!activeChatId || !user) return;

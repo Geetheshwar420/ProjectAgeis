@@ -128,6 +128,21 @@ export class StorageService {
     }
 
     /**
+     * Clear identity keys only (called on logout)
+     */
+    public static async clearIdentityKeys(): Promise<void> {
+        const db = await this.getDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(KEY_STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(KEY_STORE_NAME);
+            const request = store.delete('my_keys');
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject('Failed to clear identity keys');
+        });
+    }
+
+    /**
      * Wipe all local data (Call on logout)
      */
     public static async wipeAllData(): Promise<void> {

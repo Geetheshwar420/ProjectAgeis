@@ -47,6 +47,6 @@ const api = axios.create({
 });
 
 // Always log the API URL once for easier troubleshooting
-console.log('API Base URL:', api.defaults.baseURL);
+// Uncomment for debugging: console.log('API Base URL:', api.defaults.baseURL);
 
 export default api;

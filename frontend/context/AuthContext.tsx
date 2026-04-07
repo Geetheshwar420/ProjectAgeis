@@ -1,18 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '../services/api';
+import { CryptoService } from '../services/CryptoEngine';
+import { StorageService } from '../services/StorageService';
 
 interface User {
-    id: string;
     username: string;
-    is_online: boolean;
+    email: string;
+    id?: string;
 }
 
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    register: (username: string, password: string, publicKeys?: any) => Promise<void>;
-    login: (username: string, password: string) => Promise<void>;
+    login: (user: User) => void;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
 }
@@ -34,8 +35,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const checkAuth = async () => {
         try {
             const response = await api.get('/me');
-            setUser(response.data);
-        } catch (error) {
+            if (response.status === 200 && response.data.username) {
+                setUser(response.data);
+
+                // Ensure identity keys exist locally (generate if missing)
+                let keys = await StorageService.getIdentityKeys();
+                if (!keys) {
+                    keys = await CryptoService.generateIdentityKeys();
+                    await StorageService.saveIdentityKeys(keys);
+                }
+                // Upload public keys to backend
+                api.post('/update_keys', {
+                    public_keys: {
+                        kyber: keys.kyberPubKey,
+                        dilithium: keys.dilithiumPubKey,
+                    }
+                }).catch(() => {});
+            } else {
+                setUser(null);
+            }
+        } catch (error: any) {
+            console.log('Auth check failed:', error.response?.status);
             setUser(null);
         } finally {
             setIsLoading(false);
@@ -46,43 +66,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         checkAuth();
     }, []);
 
-    const register = async (username: string, password: string, publicKeys?: any) => {
-        try {
-            setIsLoading(true);
-            await api.post('/register', { username, password, public_keys: publicKeys });
-            // After registration, we usually log the user in or they go to login page
-            // For simplicity, let's assume they log in manually or we trigger login here
-        } catch (error) {
-            console.error('Registration error:', error);
-            throw error;
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const login = async (userData: User) => {
+        setUser(userData);
 
-    const login = async (username: string, password: string) => {
-        try {
-            setIsLoading(true);
-            const response = await api.post('/login', { username, password });
-            setUser(response.data.user);
-        } catch (error) {
-            console.error('Login error:', error);
-            throw error;
-        } finally {
-            setIsLoading(false);
+        // Generate and persist identity keys on login
+        let keys = await StorageService.getIdentityKeys();
+        if (!keys) {
+            keys = await CryptoService.generateIdentityKeys();
+            await StorageService.saveIdentityKeys(keys);
         }
+        // Upload public keys to backend
+        api.post('/update_keys', {
+            public_keys: {
+                kyber: keys.kyberPubKey,
+                dilithium: keys.dilithiumPubKey,
+            }
+        }).catch(() => {});
     };
 
     const logout = async () => {
         try {
-            setIsLoading(true);
             await api.post('/logout');
-            setUser(null);
         } catch (error) {
-            console.error('Logout error:', error);
-            throw error;
+            console.error('Logout failed', error);
         } finally {
-            setIsLoading(false);
+            // Wipe identity keys on logout
+            await StorageService.clearIdentityKeys();
+            setUser(null);
         }
     };
 
@@ -91,7 +101,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             user,
             isAuthenticated: !!user,
             isLoading,
-            register,
             login,
             logout,
             checkAuth

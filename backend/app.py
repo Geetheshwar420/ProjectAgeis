@@ -6,6 +6,7 @@ from config import Config
 from routes import api
 from socket_events import register_socket_events
 import os
+import logging
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -53,5 +54,5 @@ else:
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    print(f"Starting server on port {port}")
+    logging.info("Starting server on port %s", port)
     socketio.run(app, debug=True, use_reloader=False, host='0.0.0.0', port=port)

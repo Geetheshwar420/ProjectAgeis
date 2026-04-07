@@ -42,8 +42,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onSendMessage, onToggleRi
     const loadLocalHistory = async () => {
       if (chat?.id && participant.id !== 'unknown') {
         try {
-          const localMsgs = await StorageService.getMessages(participant.id);
-          console.log('Loaded local history:', localMsgs);
+          await StorageService.getMessages(participant.id);
         } catch (err) {
           console.error('Failed to load local history:', err);
         }
@@ -93,17 +92,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onSendMessage, onToggleRi
         if (!myKeys || !recipientKeys?.kyber) {
           console.warn("Keys missing for hybrid encryption. Falling back to deterministic...");
           const sharedKey = await CryptoService.getSharedKeyForPeer(user.username, participant.id);
-          const encryptedMessage = await CryptoService.encryptMessage(inputText, sharedKey);
+          const encryptedMessage = await CryptoService.encryptMessage(text, sharedKey);
           socket?.emit('send_message', {
             recipient_id: participant.id,
             encrypted_message: encryptedMessage,
             type: MessageType.TEXT,
+            is_hybrid: false,
             client_msg_id: `m_${Date.now()}`
           });
         } else {
           // 2. Perform Hybrid Encryption
           const hybridCt = await CryptoService.hybridEncrypt(
-            inputText,
+            text,
             myKeys.dilithiumSecKey,
             recipientKeys.kyber,
             user.username,
@@ -126,7 +126,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onSendMessage, onToggleRi
           sender_id: user.username,
           sender_username: user.username,
           recipient_id: participant.id,
-          content: inputText,
+          content: text,
           type: 'text',
           timestamp: new Date().toISOString(),
           is_encrypted: true
