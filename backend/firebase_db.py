@@ -8,21 +8,42 @@ from firebase_admin import credentials, db, firestore, storage
 from config import Config
 import datetime
 import os
+import json
 
 # Initialize Firebase Admin SDK
 def initialize_firebase():
     """Initialize Firebase Admin SDK"""
     if not firebase_admin._apps:
-        # Load credentials from file
-        creds_path = Config.FIREBASE_CREDENTIALS_PATH
+        cred = None
         
-        if not os.path.exists(creds_path):
-            raise FileNotFoundError(
-                f"Firebase credentials file not found at {creds_path}. "
-                "Please download it from Firebase Console and save it as 'firebase-credentials.json'"
-            )
+        # 1. Try to load from environment variable (for Render/Vercel)
+        creds_json = os.getenv('FIREBASE_CREDENTIALS')
+        if creds_json:
+            try:
+                # If it's a JSON string, parse it
+                cred_dict = json.loads(creds_json)
+                cred = credentials.Certificate(cred_dict)
+                print("Firebase initialized using FIREBASE_CREDENTIALS environment variable.")
+            except Exception as e:
+                print(f"Error parsing FIREBASE_CREDENTIALS env var: {e}")
         
-        cred = credentials.Certificate(creds_path)
+        # 2. Fall back to credential file (local development)
+        if cred is None:
+            creds_path = Config.FIREBASE_CREDENTIALS_PATH
+            
+            if not os.path.exists(creds_path):
+                # Check for a generic fallback path too
+                if os.path.exists('firebase-credentials.json'):
+                    creds_path = 'firebase-credentials.json'
+                else:
+                    raise FileNotFoundError(
+                        f"Firebase credentials not found. Set FIREBASE_CREDENTIALS env var or "
+                        f"place service account JSON at {creds_path}."
+                    )
+            
+            cred = credentials.Certificate(creds_path)
+            print(f"Firebase initialized using file: {creds_path}")
+
         firebase_admin.initialize_app(cred, {
             'projectId': Config.FIREBASE_PROJECT_ID,
             'storageBucket': Config.FIREBASE_STORAGE_BUCKET,
