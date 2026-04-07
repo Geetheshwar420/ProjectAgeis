@@ -5,8 +5,9 @@ from db import (
     create_user, get_user_by_username, get_user_by_id, get_all_users,
     upload_file_content, get_pending_friend_requests, create_friend_request,
     update_friend_request, get_messages_between_users, get_user_messages,
-    get_db_client, get_friend_request_by_id
+    get_db_client, get_friend_request_by_id, get_user_by_google_email
 )
+from firebase_admin import auth
 
 import uuid
 import logging
@@ -55,6 +56,69 @@ def login():
         }), 200
 
     return jsonify({"error": "Invalid credentials"}), 401
+
+@api.route('/google_login', methods=['POST'])
+def google_login():
+    data = request.json
+    id_token = data.get('idToken')
+    public_keys = data.get('public_keys')
+
+    if not id_token:
+        return jsonify({"error": "ID Token required"}), 400
+
+    try:
+        # Verify the ID token
+        decoded_token = auth.verify_id_token(id_token)
+        email = decoded_token.get('email')
+        uid = decoded_token.get('uid')
+        
+        if not email:
+            return jsonify({"error": "Email not found in token"}), 400
+
+        # 1. Primary Check: Find user by linked Google email
+        user = get_user_by_google_email(email)
+        
+        if not user:
+            # 2. Collision Check: Ensure username is unique and not a takeover
+            base_username = email.split('@')[0]
+            username = base_username
+            
+            # If the base username is taken, append a suffix to ensure uniqueness
+            counter = 1
+            while get_user_by_username(username):
+                username = f"{base_username}_{counter}"
+                counter += 1
+            
+            # Create a new user permanently linked to this Google email
+            # Use a dummy password hash since they use Google Auth
+            password_hash = generate_password_hash(str(uuid.uuid4()))
+            user = create_user(
+                username, 
+                password_hash, 
+                public_keys, 
+                google_email=email, 
+                google_uid=uid
+            )
+            
+            if not user:
+                return jsonify({"error": "Failed to create secure user session"}), 500
+
+        # Established session
+        session['user_id'] = user['id']
+        session['username'] = user['username']
+        
+        return jsonify({
+            "message": "Login successful",
+            "user": {
+                "id": user['id'],
+                "username": user['username'],
+                "is_online": user['is_online']
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Google login verification failed: {e}")
+        return jsonify({"error": "Invalid ID Token"}), 401
 
 @api.route('/logout', methods=['POST'])
 def logout():

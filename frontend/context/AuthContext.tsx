@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import api from '../services/api';
 import { CryptoService } from '../services/CryptoEngine';
 import { StorageService } from '../services/StorageService';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../services/firebase';
 
 interface User {
     username: string;
@@ -14,6 +16,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (username: string, password: string) => Promise<void>;
+    loginWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
 }
@@ -76,6 +79,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const loginWithGoogle = async () => {
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const idToken = await result.user.getIdToken();
+            
+            const response = await api.post('/google_login', { idToken });
+            
+            if (response.status === 200 && response.data.user) {
+                setUser(response.data.user);
+                ensureAndUploadKeys();
+            } else {
+                throw new Error(response.data?.error || 'Google Login failed');
+            }
+        } catch (error: any) {
+            console.error('Google login error:', error);
+            throw error;
+        }
+    };
+
     const logout = async () => {
         try {
             await api.post('/logout');
@@ -91,6 +113,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             isAuthenticated: !!user,
             isLoading,
             login,
+            loginWithGoogle,
             logout,
             checkAuth
         }}>

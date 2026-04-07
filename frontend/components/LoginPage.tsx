@@ -17,7 +17,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateSignup, onNavi
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login } = useAuth(); // Import useAuth
+  const { login, loginWithGoogle } = useAuth(); // Import handleGoogleLogin
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +41,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateSignup, onNavi
   };
 
   const handleGoogleLogin = async () => {
-    setError('Google login is being migrated to a backend-only OAuth flow. Please use handle/passphrase for now.');
+    setIsLoading(true);
+    setError('');
+    try {
+      await loginWithGoogle();
+      onLogin();
+    } catch (err: any) {
+      setError(err.message || 'Google Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

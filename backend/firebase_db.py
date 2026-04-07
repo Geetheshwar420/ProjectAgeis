@@ -65,7 +65,7 @@ def get_db_client():
 # User Operations
 # ============================================================================
 
-def create_user(username, password_hash, public_keys=None):
+def create_user(username, password_hash, public_keys=None, **kwargs):
     """Create a new user in Firestore"""
     try:
         db_client = get_db_client()
@@ -88,6 +88,9 @@ def create_user(username, password_hash, public_keys=None):
             'created_at': datetime.datetime.now(datetime.timezone.utc),
             'updated_at': datetime.datetime.now(datetime.timezone.utc),
         }
+        
+        # Add any extra metadata (e.g., google_email)
+        user_data.update(kwargs)
         
         # Add user and get the document ID
         doc_ref = users_ref.add(user_data)
@@ -119,6 +122,25 @@ def get_user_by_username(username):
         
     except Exception as e:
         print(f"Error getting user: {e}")
+        return None
+
+def get_user_by_google_email(email):
+    """Get user by linked Google email"""
+    try:
+        db_client = get_db_client()
+        users_ref = db_client.collection('users')
+        
+        query = users_ref.where('google_email', '==', email)
+        docs = list(query.stream())
+        
+        if docs:
+            user_data = docs[0].to_dict()
+            user_data['id'] = docs[0].id
+            return user_data
+        return None
+        
+    except Exception as e:
+        print(f"Error getting user by email: {e}")
         return None
 
 def get_user_by_id(user_id):
