@@ -9,7 +9,6 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { CryptoService } from '../services/CryptoEngine';
-import { FileService } from '../services/FileService';
 import { StorageService } from '../services/StorageService';
 
 interface ChatWindowProps {
@@ -22,10 +21,8 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onSendMessage, onToggleRightSidebar, onBack }) => {
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { socket } = useSocket();
   const { user } = useAuth();
@@ -142,52 +139,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onSendMessage, onToggleRi
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !chat || !user) return;
 
-    setIsUploading(true);
-    try {
-      const response = await FileService.uploadFile(file);
-      const isImage = FileService.isImage(file.name);
-
-      const msgType = isImage ? MessageType.IMAGE : MessageType.FILE;
-
-      // Send message with file URL via socket
-      const participant = chat.participants?.[0];
-      if (participant) {
-        socket?.emit('send_message', {
-          recipient_id: participant.id,
-          content: `Shared a file: ${file.name}`,
-          type: msgType,
-          mediaUrl: response.url,
-          fileName: file.name,
-          fileSize: (file.size / 1024).toFixed(1) + ' KB',
-          client_msg_id: `m_${Date.now()}`
-        });
-
-        // Local save
-        await StorageService.saveMessage({
-          id: `m_${Date.now()}`,
-          sender_id: user.username,
-          sender_username: user.username,
-          recipient_id: participant.id,
-          content: file.name,
-          type: isImage ? 'image' : 'file',
-          url: response.url,
-          timestamp: new Date().toISOString(),
-          is_encrypted: false // TODO: Encrypt URL too
-        });
-
-        // Optimistic update (UI part)
-        onSendMessage(file.name, msgType);
-      }
-    } catch (err) {
-      alert('Upload failed');
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -349,19 +301,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chat, onSendMessage, onToggleRi
               </div>
             )}
           </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className={`p-3 border-2 border-black dark:border-white bg-transparent text-black dark:text-white transition-colors shadow-[2px_2px_0px_#000] dark:shadow-[2px_2px_0px_#fff] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${isUploading ? 'opacity-50 cursor-wait' : 'hover:bg-emerald-500 hover:text-black'}`}
-          >
-            <Paperclip className="w-6 h-6" />
-          </button>
+
 
           <div className="flex-1 group">
             <textarea
