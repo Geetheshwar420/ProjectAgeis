@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         },
         '/login': 'http://localhost:5000',
+        '/google_login': 'http://localhost:5000',
         '/register': 'http://localhost:5000',
         '/logout': 'http://localhost:5000',
         '/me': 'http://localhost:5000',

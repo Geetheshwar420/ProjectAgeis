@@ -9,6 +9,7 @@ from config import Config
 import datetime
 import os
 import json
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 # Initialize Firebase Admin SDK
 def initialize_firebase():
@@ -72,7 +73,7 @@ def create_user(username, password_hash, public_keys=None, **kwargs):
         
         # Check if username already exists
         users_ref = db_client.collection('users')
-        query = users_ref.where('username', '==', username)
+        query = users_ref.where(filter=FieldFilter('username', '==', username))
         existing = list(query.stream())
         
         if existing:
@@ -111,7 +112,7 @@ def get_user_by_username(username):
         db_client = get_db_client()
         users_ref = db_client.collection('users')
         
-        query = users_ref.where('username', '==', username)
+        query = users_ref.where(filter=FieldFilter('username', '==', username))
         docs = list(query.stream())
         
         if docs:
@@ -130,7 +131,7 @@ def get_user_by_google_email(email):
         db_client = get_db_client()
         users_ref = db_client.collection('users')
         
-        query = users_ref.where('google_email', '==', email)
+        query = users_ref.where(filter=FieldFilter('google_email', '==', email))
         docs = list(query.stream())
         
         if docs:
@@ -165,7 +166,7 @@ def update_user_status(username, is_online):
         db_client = get_db_client()
         users_ref = db_client.collection('users')
         
-        query = users_ref.where('username', '==', username)
+        query = users_ref.where(filter=FieldFilter('username', '==', username))
         for doc in query.stream():
             doc.reference.update({
                 'is_online': is_online,
@@ -241,14 +242,14 @@ def get_messages_between_users(user_id_1, user_id_2, limit=50):
         messages_ref = db_client.collection('messages')
         
         # Get messages sent by user_id_1 to user_id_2
-        query1 = messages_ref.where('sender_id', '==', user_id_1)\
-            .where('recipient_id', '==', user_id_2)\
+        query1 = messages_ref.where(filter=FieldFilter('sender_id', '==', user_id_1))\
+            .where(filter=FieldFilter('recipient_id', '==', user_id_2))\
             .order_by('created_at', direction=firestore.Query.DESCENDING)\
             .limit(limit)
         
         # Get messages sent by user_id_2 to user_id_1
-        query2 = messages_ref.where('sender_id', '==', user_id_2)\
-            .where('recipient_id', '==', user_id_1)\
+        query2 = messages_ref.where(filter=FieldFilter('sender_id', '==', user_id_2))\
+            .where(filter=FieldFilter('recipient_id', '==', user_id_1))\
             .order_by('created_at', direction=firestore.Query.DESCENDING)\
             .limit(limit)
         
@@ -278,12 +279,12 @@ def get_user_messages(user_id, limit=50):
         messages_ref = db_client.collection('messages')
         
         # Messages sent by user
-        sent = messages_ref.where('sender_id', '==', user_id)\
+        sent = messages_ref.where(filter=FieldFilter('sender_id', '==', user_id))\
             .order_by('created_at', direction=firestore.Query.DESCENDING)\
             .limit(limit)
         
         # Messages received by user
-        received = messages_ref.where('recipient_id', '==', user_id)\
+        received = messages_ref.where(filter=FieldFilter('recipient_id', '==', user_id))\
             .order_by('created_at', direction=firestore.Query.DESCENDING)\
             .limit(limit)
         
@@ -329,8 +330,8 @@ def create_friend_request(from_user_id, to_user_id):
         
         # Check if request already exists
         requests_ref = db_client.collection('friend_requests')
-        query = requests_ref.where('from_user_id', '==', from_user_id)\
-            .where('to_user_id', '==', to_user_id)
+        query = requests_ref.where(filter=FieldFilter('from_user_id', '==', from_user_id))\
+            .where(filter=FieldFilter('to_user_id', '==', to_user_id))
         
         if list(query.stream()):
             return None  # Request already exists
@@ -357,8 +358,8 @@ def get_pending_friend_requests(user_id):
         db_client = get_db_client()
         requests_ref = db_client.collection('friend_requests')
         
-        query = requests_ref.where('to_user_id', '==', user_id)\
-            .where('status', '==', 'pending')\
+        query = requests_ref.where(filter=FieldFilter('to_user_id', '==', user_id))\
+            .where(filter=FieldFilter('status', '==', 'pending'))\
             .order_by('created_at', direction=firestore.Query.DESCENDING)
         
         requests = []
@@ -432,7 +433,7 @@ def get_session_key(session_id):
         db_client = get_db_client()
         keys_ref = db_client.collection('session_keys')
         
-        query = keys_ref.where('session_id', '==', session_id)
+        query = keys_ref.where(filter=FieldFilter('session_id', '==', session_id))
         docs = list(query.stream())
         
         if docs:
@@ -451,7 +452,7 @@ def get_user_session_keys(user_id):
         db_client = get_db_client()
         keys_ref = db_client.collection('session_keys')
         
-        query = keys_ref.where('user_id', '==', user_id)\
+        query = keys_ref.where(filter=FieldFilter('user_id', '==', user_id))\
             .order_by('created_at', direction=firestore.Query.DESCENDING)
         
         keys = []
@@ -472,7 +473,7 @@ def delete_session_key(session_id):
         db_client = get_db_client()
         keys_ref = db_client.collection('session_keys')
         
-        query = keys_ref.where('session_id', '==', session_id)
+        query = keys_ref.where(filter=FieldFilter('session_id', '==', session_id))
         for doc in query.stream():
             doc.reference.delete()
         

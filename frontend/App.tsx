@@ -311,7 +311,28 @@ const AppContent: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center bg-[#0f172a] text-white">Loading...</div>;
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white font-sans transition-colors duration-500 overflow-hidden">
+        <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03] dark:opacity-[0.05]"
+          style={{ backgroundImage: 'linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        
+        <div className="relative mb-10 z-10">
+          <div className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20 blur-2xl" />
+          <div className="relative z-10 w-24 h-24 bg-white dark:bg-[#0f172a] rounded-xl p-4 border-2 border-black dark:border-white shadow-[8px_8px_0px_#10b981]">
+            <img src="/pwa-512x512.png" alt="AGIES Logo" className="w-full h-full object-contain" />
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-4 z-10">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 animate-bounce bg-emerald-500 rounded-full [animation-duration:0.6s]" />
+            <div className="h-2 w-2 animate-bounce bg-emerald-500 rounded-full [animation-duration:0.6s] [animation-delay:0.2s]" />
+            <div className="h-2 w-2 animate-bounce bg-emerald-500 rounded-full [animation-duration:0.6s] [animation-delay:0.4s]" />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 animate-pulse">Establishing Secure Vault</p>
+        </div>
+      </div>
+    );
   }
 
   if (view === 'landing') {

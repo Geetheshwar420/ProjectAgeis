@@ -55,8 +55,8 @@ const SignupPage: React.FC<SignupPageProps> = ({ onLogin, onNavigateLogin, onNav
             {/* Left Side - Info */}
             <div className="hidden md:flex flex-col justify-between p-10 bg-emerald-500 text-black w-1/3 border-r-4 border-black dark:border-white">
                <div>
-                  <div className="w-12 h-12 bg-black border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_#000] mb-6 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000] transition-all">
-                     <Shield className="w-6 h-6 text-emerald-500" />
+                  <div className="w-12 h-12 bg-black border-2 border-black flex items-center justify-center shadow-[4px_4px_0px_#000] mb-6 hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#000] transition-all p-2">
+                     <img src="/pwa-512x512.png" alt="AGIES" className="w-full h-full object-contain" />
                   </div>
                   <h2 className="text-3xl font-black text-black uppercase tracking-tighter mb-2">Initialize</h2>
                   <p className="font-mono text-xs text-black/80 font-bold uppercase tracking-widest leading-relaxed">Establish Secure Identity & Generate Cryptographic Keys.</p>

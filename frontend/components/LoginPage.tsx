@@ -75,8 +75,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onNavigateSignup, onNavi
           <div className="absolute bottom-0 right-0 w-8 h-8 border-t-4 border-l-4 border-black dark:border-white" />
 
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-emerald-500 border-2 border-black dark:border-white mx-auto flex items-center justify-center mb-4 shadow-[4px_4px_0px_#000] dark:shadow-[4px_4px_0px_#fff]">
-              <LockIcon className="w-8 h-8 text-black" />
+            <div className="w-16 h-16 bg-emerald-500 border-2 border-black dark:border-white mx-auto flex items-center justify-center mb-4 shadow-[4px_4px_0px_#000] dark:shadow-[4px_4px_0px_#fff] p-3">
+              <img src="/pwa-512x512.png" alt="AGIES" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-4xl font-black text-black dark:text-white uppercase tracking-tighter mb-2">Identify</h1>
             <p className="font-mono text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">Access Secure Vault</p>

@@ -33,8 +33,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 border-b border-transparent ${isScrolled ? 'bg-white dark:bg-black border-black/10 dark:border-white/10 py-3' : 'bg-transparent py-5'}`}>
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <div className="w-8 h-8 bg-emerald-500 flex items-center justify-center shadow-[2px_2px_0px_#000] dark:shadow-[2px_2px_0px_#fff] group-hover:translate-x-[1px] group-hover:translate-y-[1px] group-hover:shadow-[1px_1px_0px_#000] dark:group-hover:shadow-[1px_1px_0px_#fff] transition-all">
-              <LockIcon className="w-4 h-4 text-black" />
+            <div className="w-8 h-8 bg-emerald-500 flex items-center justify-center shadow-[2px_2px_0px_#000] dark:shadow-[2px_2px_0px_#fff] group-hover:translate-x-[1px] group-hover:translate-y-[1px] group-hover:shadow-[1px_1px_0px_#000] dark:group-hover:shadow-[1px_1px_0px_#fff] transition-all p-1.5">
+              <img src="/pwa-512x512.png" alt="AGIES" className="w-full h-full object-contain" />
             </div>
             <span className="text-2xl font-black text-black dark:text-white tracking-tighter">AGES.</span>
           </div>
@@ -187,8 +187,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
                   </div>
                   {/* Floating Brutalist Card */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black dark:bg-white text-white dark:text-black p-4 border-4 border-black dark:border-white shadow-[8px_8px_0px_#10b981] flex items-center gap-4 animate-bounce-soft">
-                    <div className="w-10 h-10 bg-emerald-500 flex items-center justify-center">
-                      <LockIcon className="w-6 h-6 text-black" />
+                    <div className="w-10 h-10 bg-emerald-500 flex items-center justify-center p-2">
+                      <img src="/pwa-512x512.png" alt="AGIES" className="w-full h-full object-contain" />
                     </div>
                     <div>
                       <div className="text-sm font-black uppercase tracking-tight">QKD Secured</div>
@@ -236,7 +236,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, theme, setTheme }
               description="Decentralized key management architecture."
             />
             <FeatureCard
-              icon={<LockIcon className="w-10 h-10" />}
+              icon={<img src="/pwa-512x512.png" alt="Logo" className="w-10 h-10 object-contain" />}
               title="Zero Access"
               description="We physically cannot read your data. Period."
             />

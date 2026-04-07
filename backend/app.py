@@ -1,6 +1,9 @@
 import os
 import sys
 
+# Force Firestore to use HTTP instead of gRPC to prevent Eventlet conflicts
+os.environ["GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP"] = "true"
+
 # Eventlet monkey patching MUST happen before any other imports
 # Only patch if not already patched by Gunicorn and not on Windows (unless in production)
 _eventlet_available = False

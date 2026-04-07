@@ -8,9 +8,13 @@ from db import (
     get_db_client, get_friend_request_by_id, get_user_by_google_email
 )
 from firebase_admin import auth
+from firebase_db import initialize_firebase
 
 import uuid
 import logging
+
+# Ensure Firebase is initialized before routes process any requests
+initialize_firebase()
 
 logger = logging.getLogger(__name__)
 
@@ -178,8 +182,6 @@ def upload_file():
         }), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# Removed redundant prepare_message route. Crypto is now handled on the frontend.
 
 
 # ============================================================================
