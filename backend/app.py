@@ -32,8 +32,8 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Configure SocketIO with appropriate async mode
-# Use eventlet ONLY if it was successfully loaded and patched
-async_mode = 'eventlet' if _eventlet_available else 'threading'
+# Use gevent ONLY if it was successfully loaded and patched
+async_mode = 'gevent' if _async_available else 'threading'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
 
 # Register Blueprints
