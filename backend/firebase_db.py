@@ -342,6 +342,22 @@ def update_friend_request(request_id, status):
     except Exception as e:
         print(f"Error updating friend request: {e}")
 
+def get_friend_request_by_id(request_id):
+    """Get a friend request by its ID"""
+    try:
+        db_client = get_db_client()
+        doc = db_client.collection('friend_requests').document(request_id).get()
+        
+        if doc.exists:
+            req_data = doc.to_dict()
+            req_data['id'] = doc.id
+            return req_data
+        return None
+        
+    except Exception as e:
+        print(f"Error getting friend request by ID: {e}")
+        return None
+
 # ============================================================================
 # Session Key Operations
 # ============================================================================

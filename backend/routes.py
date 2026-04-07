@@ -5,8 +5,9 @@ from db import (
     create_user, get_user_by_username, get_user_by_id, get_all_users,
     upload_file_content, get_pending_friend_requests, create_friend_request,
     update_friend_request, get_messages_between_users, get_user_messages,
-    get_db_client,
+    get_db_client, get_friend_request_by_id
 )
+
 import uuid
 import logging
 
@@ -189,18 +190,21 @@ def send_friend_request():
     if 'username' not in session:
         return jsonify({"error": "Not authenticated"}), 401
     data = request.json
-    to_username = data.get('to_username') or data.get('recipient')
+    to_username = data.get('to_username')
     if not to_username:
-        return jsonify({"error": "to_username or recipient required"}), 400
+        return jsonify({"error": "to_username required"}), 400
     from_user = get_user_by_username(session['username'])
     to_user = get_user_by_username(to_username)
+    if not from_user:
+        return jsonify({"error": "User not found"}), 404
     if not to_user:
         return jsonify({"error": "User not found"}), 404
+    if from_user['id'] == to_user['id']:
+        return jsonify({"error": "Cannot send friend request to yourself"}), 400
     result = create_friend_request(from_user['id'], to_user['id'])
     if result:
         return jsonify({"message": "Friend request sent", "request": result}), 201
     return jsonify({"error": "Request already exists or failed"}), 400
-
 @api.route('/friend-requests', methods=['GET'])
 def get_friend_requests():
     if 'username' not in session:
@@ -225,11 +229,24 @@ def get_friend_requests():
 def respond_friend_request():
     if 'username' not in session:
         return jsonify({"error": "Not authenticated"}), 401
+    user = get_user_by_username(session['username'])
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+        
     data = request.json
     request_id = data.get('request_id')
     status = data.get('status')
     if not request_id or status not in ('accepted', 'rejected'):
         return jsonify({"error": "request_id and valid status required"}), 400
+        
+    # Fetch the friend request and verify the current user is the recipient
+    friend_request = get_friend_request_by_id(request_id)
+    if not friend_request:
+        return jsonify({"error": "Friend request not found"}), 404
+        
+    if friend_request['to_user_id'] != user['id']:
+        return jsonify({"error": "Not authorized to respond to this request"}), 403
+        
     update_friend_request(request_id, status)
     return jsonify({"message": f"Request {status}"}), 200
 
