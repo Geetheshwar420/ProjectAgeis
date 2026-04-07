@@ -43,14 +43,26 @@ def add_security_headers(response):
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        # Relaxed CSP for production: allow ourselves, Render backend, and Google Fonts
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "connect-src 'self' https://projectageis.onrender.com wss://projectageis.onrender.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "img-src 'self' data: blob:;"
+        )
     return response
 
-# Standard Flask-CORS setup (using * for origins in dev handles dynamic IPs better)
+# Standard Flask-CORS setup
+trusted_origins = [
+    "https://project-ageis.vercel.app",
+    "https://project-ageis-fmhxrlnr4-geetheshwar-linuxs-projects.vercel.app"
+]
+
 if os.getenv('FLASK_ENV') != 'production':
     CORS(app, supports_credentials=True, origins=["*"])
 else:
-    CORS(app, supports_credentials=True, origins=["https://project-ageis.vercel.app/"])
+    CORS(app, supports_credentials=True, origins=trusted_origins)
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
