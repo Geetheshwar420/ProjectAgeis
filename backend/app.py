@@ -1,11 +1,21 @@
-# Note: Do not use eventlet monkey patch with async_mode='threading' on Windows to avoid deadlocks
+import os
+import sys
+
+# Eventlet monkey patching MUST happen before any other imports
+# Only skip on Windows to avoid local development deadlocks
+if os.name != 'nt' or os.getenv('FLASK_ENV') == 'production':
+    try:
+        import eventlet
+        eventlet.monkey_patch()
+    except ImportError:
+        pass
+
 from flask import Flask, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from config import Config
 from routes import api
 from socket_events import register_socket_events
-import os
 import logging
 
 app = Flask(__name__)
