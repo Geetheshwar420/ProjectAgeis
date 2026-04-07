@@ -1,24 +1,8 @@
 import os
 import sys
 
-# Force Firestore to use HTTP instead of gRPC to prevent Eventlet conflicts
-os.environ["GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP"] = "true"
-
-# Detect if running under Gunicorn to set the correct SocketIO async mode.
-# IMPORTANT: Do NOT call monkey.patch_all() here — the GeventWebSocketWorker
-# handles patching in each worker process. Patching at module level corrupts
-# the Gunicorn arbiter's event loop (causes WORKER TIMEOUT / SIGKILL).
-_running_under_gunicorn = 'gunicorn' in sys.modules
-_async_available = False
-try:
-    import gevent  # noqa: F401
-    if _running_under_gunicorn:
-        _async_available = True
-        print("[SERVER] Gunicorn detected — SocketIO will use gevent async mode.")
-    else:
-        print("[SERVER] Running locally — SocketIO will use threading async mode.")
-except ImportError:
-    print("[SERVER] Gevent not found — SocketIO will use threading async mode.")
+# Force Firestore HTTP transport (idempotent — also set in wsgi.py for Gunicorn)
+os.environ.setdefault("GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP", "true")
 
 from flask import Flask, request
 from flask_socketio import SocketIO
@@ -35,10 +19,10 @@ app.config.from_object(Config)
 cors_origins = [o.rstrip('/') for o in app.config['TRUSTED_ORIGINS']]
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": cors_origins}})
 
-# Configure SocketIO with appropriate async mode
-# Use gevent ONLY if it was successfully loaded and patched
-async_mode = 'gevent' if _async_available else 'threading'
+# SocketIO async mode: set to 'gevent' by wsgi.py in production, defaults to 'threading' locally
+async_mode = os.environ.get('SOCKETIO_ASYNC_MODE', 'threading')
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
+print(f"[SERVER] SocketIO async_mode={async_mode}")
 
 # Register Blueprints
 app.register_blueprint(api)
