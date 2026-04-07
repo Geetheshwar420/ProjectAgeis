@@ -7,18 +7,25 @@ from db import (
     update_friend_request, get_messages_between_users, get_user_messages,
     get_db_client, get_friend_request_by_id, get_user_by_google_email
 )
-from firebase_admin import auth
 from firebase_db import initialize_firebase
 
 import uuid
 import logging
 
-# Ensure Firebase is initialized before routes process any requests
-initialize_firebase()
-
 logger = logging.getLogger(__name__)
 
 api = Blueprint('api', __name__)
+
+# Lazy Firebase initialization — runs once on the first real request,
+# NOT during module import (which blocks Gunicorn heartbeats and causes SIGKILL).
+_firebase_initialized = False
+
+@api.before_request
+def _ensure_firebase():
+    global _firebase_initialized
+    if not _firebase_initialized and request.endpoint != 'api.healthz':
+        initialize_firebase()
+        _firebase_initialized = True
 
 @api.route('/register', methods=['POST'])
 def register():
@@ -71,6 +78,8 @@ def google_login():
         return jsonify({"error": "ID Token required"}), 400
 
     try:
+        # Lazy import — firebase_admin is heavy and loaded on-demand
+        from firebase_admin import auth
         # Verify the ID token
         decoded_token = auth.verify_id_token(id_token)
         email = decoded_token.get('email')

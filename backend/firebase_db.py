@@ -3,17 +3,36 @@ Firebase Realtime Database and Firestore implementation for the messaging app.
 Replaces the Supabase database module.
 """
 
-import firebase_admin
-from firebase_admin import credentials, db, firestore, storage
 from config import Config
 import datetime
 import os
 import json
-from google.cloud.firestore_v1.base_query import FieldFilter
+
+# Lazy imports — these are heavy and trigger SSL/gRPC loading.
+# Deferring them prevents Gunicorn worker timeout during cold start.
+firebase_admin = None
+credentials = None
+firestore = None
+storage = None
+FieldFilter = None
+
+def _ensure_imports():
+    """Lazy-load firebase and google cloud modules on first use."""
+    global firebase_admin, credentials, firestore, storage, FieldFilter
+    if firebase_admin is None:
+        import firebase_admin as _fa
+        from firebase_admin import credentials as _cred, firestore as _fs, storage as _st
+        from google.cloud.firestore_v1.base_query import FieldFilter as _ff
+        firebase_admin = _fa
+        credentials = _cred
+        firestore = _fs
+        storage = _st
+        FieldFilter = _ff
 
 # Initialize Firebase Admin SDK
 def initialize_firebase():
     """Initialize Firebase Admin SDK"""
+    _ensure_imports()
     if not firebase_admin._apps:
         cred = None
         
