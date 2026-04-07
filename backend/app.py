@@ -4,24 +4,21 @@ import sys
 # Force Firestore to use HTTP instead of gRPC to prevent Eventlet conflicts
 os.environ["GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP"] = "true"
 
-# Gevent monkey patching — only when running under Gunicorn (production)
-# When running locally via `python app.py`, skip patching to avoid Firestore SSL conflicts
+# Detect if running under Gunicorn to set the correct SocketIO async mode.
+# IMPORTANT: Do NOT call monkey.patch_all() here — the GeventWebSocketWorker
+# handles patching in each worker process. Patching at module level corrupts
+# the Gunicorn arbiter's event loop (causes WORKER TIMEOUT / SIGKILL).
+_running_under_gunicorn = 'gunicorn' in sys.modules
 _async_available = False
-_running_under_gunicorn = 'gunicorn' in os.environ.get('SERVER_SOFTWARE', '') or 'gunicorn' in sys.modules
 try:
-    import gevent
-    from gevent import monkey
+    import gevent  # noqa: F401
     if _running_under_gunicorn:
-        if not monkey.is_module_patched('os'):
-            monkey.patch_all()
-            print("[SERVER] Gevent monkey patching applied (Gunicorn detected).")
-        else:
-            print("[SERVER] Gevent already patched by Gunicorn.")
         _async_available = True
+        print("[SERVER] Gunicorn detected — SocketIO will use gevent async mode.")
     else:
-        print("[SERVER] Running locally — skipping gevent monkey patch for Firestore compatibility.")
+        print("[SERVER] Running locally — SocketIO will use threading async mode.")
 except ImportError:
-    print("[SERVER] Gevent not found, skipping monkey patch.")
+    print("[SERVER] Gevent not found — SocketIO will use threading async mode.")
 
 from flask import Flask, request
 from flask_socketio import SocketIO
