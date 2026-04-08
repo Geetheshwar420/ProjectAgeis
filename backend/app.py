@@ -11,6 +11,7 @@ from flask_cors import CORS
 from config import Config
 from routes import api
 from socket_events import register_socket_events
+from werkzeug.middleware.proxy_fix import ProxyFix
 import time
 
 def log_ts(msg):
@@ -19,6 +20,7 @@ def log_ts(msg):
 
 log_ts("Starting Flask application init...")
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.config.from_object(Config)
 
 # Enable CORS — use exact origins for credentials support
