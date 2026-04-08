@@ -15,13 +15,14 @@ import logging
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Enable CORS — strip trailing slashes from origins for exact match compliance
-cors_origins = [o.rstrip('/') for o in app.config['TRUSTED_ORIGINS']]
+# Enable CORS — use exact origins for credentials support
+cors_origins = app.config['TRUSTED_ORIGINS']
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": cors_origins}})
+print(f"[SERVER] CORS configured for: {cors_origins}")
 
 # SocketIO async mode: set to 'gevent' by wsgi.py in production, defaults to 'threading' locally
 async_mode = os.environ.get('SOCKETIO_ASYNC_MODE', 'threading')
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
+socketio = SocketIO(app, cors_allowed_origins=cors_origins, async_mode=async_mode, manage_session=False)
 print(f"[SERVER] SocketIO async_mode={async_mode}")
 
 # Register Blueprints

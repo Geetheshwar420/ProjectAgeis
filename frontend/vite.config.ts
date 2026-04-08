@@ -47,7 +47,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       tailwindcss(),
-      react(),
+      react({
+        jsxRuntime: 'automatic',
+      }),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico', 'apple-touch-icon.png'],

@@ -417,11 +417,20 @@ export class CryptoService {
         const kyberKeys = this.kyber.generateKeypair();
         const dilithiumKeys = this.dilithium.generateKeypair();
 
+        const toBase64 = (arr: Uint8Array) => {
+            let binary = '';
+            const len = arr.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(arr[i]);
+            }
+            return btoa(binary);
+        };
+
         return {
-            kyberPubKey: btoa(String.fromCharCode(...kyberKeys.publicKey)),
-            kyberSecKey: btoa(String.fromCharCode(...kyberKeys.secretKey)),
-            dilithiumPubKey: btoa(String.fromCharCode(...dilithiumKeys.publicKey)),
-            dilithiumSecKey: btoa(String.fromCharCode(...dilithiumKeys.secretKey)),
+            kyberPubKey: toBase64(kyberKeys.publicKey),
+            kyberSecKey: toBase64(kyberKeys.secretKey),
+            dilithiumPubKey: toBase64(dilithiumKeys.publicKey),
+            dilithiumSecKey: toBase64(dilithiumKeys.secretKey),
         };
     }
 
