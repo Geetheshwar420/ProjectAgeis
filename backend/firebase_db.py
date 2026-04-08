@@ -6,6 +6,7 @@ Replaces the Supabase database module.
 from config import Config
 import datetime
 import os
+import time
 import json
 
 # Lazy imports — these are heavy and trigger SSL/gRPC loading.
