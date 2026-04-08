@@ -10,26 +10,37 @@ from flask_cors import CORS
 from config import Config
 from routes import api
 from socket_events import register_socket_events
-import logging
+import time
 
+def log_ts(msg):
+    # Standard log format for Gunicorn to relay to Render
+    print(f"[{time.strftime('%H:%M:%S')}] [INIT] {msg}", flush=True)
+
+log_ts("Starting Flask application init...")
 app = Flask(__name__)
 app.config.from_object(Config)
 
 # Enable CORS — use exact origins for credentials support
+log_ts("Configuring CORS...")
 cors_origins = app.config['TRUSTED_ORIGINS']
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": cors_origins}})
-print(f"[SERVER] CORS configured for: {cors_origins}")
+log_ts(f"CORS configured for: {cors_origins}")
 
 # SocketIO async mode: set to 'gevent' by wsgi.py in production, defaults to 'threading' locally
+log_ts("Configuring SocketIO...")
 async_mode = os.environ.get('SOCKETIO_ASYNC_MODE', 'threading')
 socketio = SocketIO(app, cors_allowed_origins=cors_origins, async_mode=async_mode, manage_session=False)
-print(f"[SERVER] SocketIO async_mode={async_mode}")
+log_ts(f"SocketIO initialized with async_mode={async_mode}")
 
 # Register Blueprints
+log_ts("Registering blueprints/routes...")
 app.register_blueprint(api)
+log_ts("Blueprints registered.")
 
 # Register Socket Events
+log_ts("Registering socket events...")
 register_socket_events(socketio)
+log_ts("Socket events registered. Init complete.")
 
 # session cookie settings for HTTP/LAN development
 app.config.update(
