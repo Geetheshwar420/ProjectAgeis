@@ -49,6 +49,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children, curren
         const newSocket = io(socketUrl, {
             withCredentials: true,
             transports: ['polling'],
+            extraHeaders: {
+                'ngrok-skip-browser-warning': 'true'
+            }
         });
 
         newSocket.on('connect', () => {
