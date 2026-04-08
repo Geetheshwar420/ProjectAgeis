@@ -51,6 +51,10 @@ app.config.update(
 
 @app.after_request
 def add_security_headers(response):
+    # Production Profiling: Log every response to identify "NETWORK ERROR" source
+    if request.endpoint != 'api.healthz':
+        log_ts(f"Response: {response.status} for {request.method} {request.path} from {request.remote_addr}")
+
     # Support Chrome's Private Network Access and explicit CORS preflight
     if request.method == 'OPTIONS':
         response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
