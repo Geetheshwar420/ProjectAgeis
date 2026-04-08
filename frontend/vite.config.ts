@@ -49,13 +49,18 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       react({
         jsxRuntime: 'automatic',
+        babel: {
+          plugins: [
+            ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }]
+          ]
+        }
       }),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico', 'apple-touch-icon.png'],
         manifest: {
-          name: 'PROJECT AGIS',
-          short_name: 'AGIS',
+          name: 'PROJECT AGEIS',
+          short_name: 'AGEIS',
           description: 'Secure Messaging with Post-Quantum Cryptography',
           theme_color: '#10b981',
           icons: [
@@ -80,6 +85,16 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        'react': path.resolve(__dirname, 'node_modules/react'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      }
+    },
+    build: {
+      outDir: 'dist',
+      sourcemap: true,
+      commonjsOptions: {
+        include: [/node_modules/],
+        transformMixedEsModules: true,
       }
     }
   };
