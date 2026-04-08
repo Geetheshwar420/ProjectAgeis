@@ -22,6 +22,18 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
+  <script>
+    // Critical Shim for libraries expecting "h" (Preact/Legacy JSX)
+    // We set this IN HEAD so it is available before the module bundle loads.
+    (function() {
+      try {
+        window.h = function() { return window.React && window.React.createElement ? window.React.createElement.apply(window.React, arguments) : null; };
+        console.log('[PROD] Early "h" shim initialized.');
+      } catch(e) {
+        console.error('[PROD] Early shim failed:', e);
+      }
+    })();
+  </script>
   <style>
     :root {
       --color-bg-primary: #FCFCF9;

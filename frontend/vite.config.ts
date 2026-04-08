@@ -47,14 +47,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       tailwindcss(),
-      react({
-        jsxRuntime: 'automatic',
-        babel: {
-          plugins: [
-            ['@babel/plugin-transform-react-jsx', { runtime: 'automatic' }]
-          ]
-        }
-      }),
+      react(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico', 'apple-touch-icon.png'],

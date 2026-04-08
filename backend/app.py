@@ -51,15 +51,19 @@ app.config.update(
 
 @app.after_request
 def add_security_headers(response):
-    # Support Chrome's Private Network Access
+    # Support Chrome's Private Network Access and explicit CORS preflight
     if request.method == 'OPTIONS':
+        response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Private-Network'] = 'true'
+        return response
     
     # Simple headers for development
     if os.getenv('FLASK_ENV') != 'production':
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        # No CSP or strict HSTS in development to avoid LAN IP blocks
     else:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         response.headers['X-Content-Type-Options'] = 'nosniff'

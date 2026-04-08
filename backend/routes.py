@@ -49,6 +49,10 @@ def register():
 
 @api.route('/login', methods=['POST'])
 def login():
+    # Production debugging for "NETWORK ERROR"
+    import time
+    print(f"[{time.strftime('%H:%M:%S')}] [ROUTE] Entering /login route from {request.remote_addr}", flush=True)
+    
     data = request.json
     username = data.get('username')
     password = data.get('password')
