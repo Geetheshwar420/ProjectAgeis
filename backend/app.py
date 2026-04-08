@@ -58,11 +58,18 @@ def add_security_headers(response):
 
     # Support Chrome's Private Network Access and explicit CORS preflight
     if request.method == 'OPTIONS':
-        response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        # Get actual Origin from request or use first trusted origin as fallback
+        origin = request.headers.get('Origin')
+        if not origin or origin not in cors_origins:
+            origin = cors_origins[0] if cors_origins else '*'
+            
+        log_ts(f"Handling OPTIONS preflight for {request.path} from {origin}")
+        response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Private-Network'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '86400' # Cache for 24 hours
         return response
     
     # Simple headers for development

@@ -51,9 +51,15 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const { user } = useAuth(); // Get real authenticated user
 
   const fetchFriends = async () => {
+    if (!user) {
+      console.log('[DEBUG] LeftSidebar: No user, skipping friends fetch');
+      return;
+    }
     try {
       setIsLoadingData(true);
+      console.log('[DEBUG] LeftSidebar: Fetching friends for', user.username);
       const response = await api.get('/friends');
+      console.log('[DEBUG] LeftSidebar: Friends response:', response.data);
       setFriends(response.data);
     } catch (error) {
       console.error('Error fetching friends:', error);
@@ -88,9 +94,11 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
   };
 
   useEffect(() => {
-    fetchFriends();
-    fetchRequests();
-  }, []);
+    if (user) {
+      fetchFriends();
+      fetchRequests();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (activeTab === 'friends') fetchFriends();

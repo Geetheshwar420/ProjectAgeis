@@ -72,8 +72,10 @@ const AppContent: React.FC = () => {
     const fetchChats = async () => {
       if (!user) return;
       try {
+        console.log('[DEBUG] App: Fetching friends for chat list...');
         const response = await api.get('/friends');
         const users = response.data;
+        console.log('[DEBUG] App: Fetched users:', users);
 
         // Map users to Chat objects and LOAD HISTORY
         const mappedChats: Chat[] = await Promise.all(users.map(async (u: any) => {
