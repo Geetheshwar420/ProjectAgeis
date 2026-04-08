@@ -26,12 +26,15 @@
     // Critical Shim for libraries expecting "h" (Preact/Legacy JSX)
     // We set this IN HEAD so it is available before the module bundle loads.
     (function() {
-      try {
-        window.h = function() { return window.React && window.React.createElement ? window.React.createElement.apply(window.React, arguments) : null; };
-        console.log('[PROD] Early "h" shim initialized.');
-      } catch(e) {
-        console.error('[PROD] Early shim failed:', e);
-      }
+      // Robust shim for dependency compatibility
+      window.h = function() {
+        if (window.React && window.React.createElement) {
+          return window.React.createElement.apply(window.React, arguments);
+        }
+        // Fallback to avoid "h is not a function" crash, returns nothing
+        return null;
+      };
+      console.log('[PROD] Late-binding "h" shim initialized.');
     })();
   </script>
   <style>

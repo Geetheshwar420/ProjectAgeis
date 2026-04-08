@@ -42,8 +42,9 @@ def initialize_firebase():
             try:
                 # If it's a JSON string, parse it
                 cred_dict = json.loads(creds_json)
+                print(f"[{time.strftime('%H:%M:%S')}] [PROF] Parsing credentials dict...", flush=True)
                 cred = credentials.Certificate(cred_dict)
-                print("Firebase initialized using FIREBASE_CREDENTIALS environment variable.")
+                print(f"[{time.strftime('%H:%M:%S')}] [PROF] Firebase initialized using FIREBASE_CREDENTIALS environment variable.", flush=True)
             except Exception as e:
                 print(f"Error parsing FIREBASE_CREDENTIALS env var: {e}")
         
@@ -64,12 +65,17 @@ def initialize_firebase():
             cred = credentials.Certificate(creds_path)
             print(f"Firebase initialized using file: {creds_path}")
 
+        print(f"[{time.strftime('%H:%M:%S')}] [PROF] Calling firebase_admin.initialize_app...", flush=True)
         firebase_admin.initialize_app(cred, {
             'projectId': Config.FIREBASE_PROJECT_ID,
             'storageBucket': Config.FIREBASE_STORAGE_BUCKET,
         })
+        print(f"[{time.strftime('%H:%M:%S')}] [PROF] initialize_app complete.", flush=True)
     
-    return firestore.client()
+    print(f"[{time.strftime('%H:%M:%S')}] [PROF] Fetching firestore client...", flush=True)
+    client = firestore.client()
+    print(f"[{time.strftime('%H:%M:%S')}] [PROF] Firestore client ready.", flush=True)
+    return client
 
 # Initialize Firestore client
 _db_client = None
@@ -128,11 +134,15 @@ def create_user(username, password_hash, public_keys=None, **kwargs):
 def get_user_by_username(username):
     """Get user by username"""
     try:
+        print(f"[{time.strftime('%H:%M:%S')}] [PROF] Database query: finding user '{username}'", flush=True)
         db_client = get_db_client()
         users_ref = db_client.collection('users')
         
         query = users_ref.where(filter=FieldFilter('username', '==', username))
+        
+        print(f"[{time.strftime('%H:%M:%S')}] [PROF] Executing firestore stream() for user lookup...", flush=True)
         docs = list(query.stream())
+        print(f"[{time.strftime('%H:%M:%S')}] [PROF] firestore stream() returned {len(docs)} docs.", flush=True)
         
         if docs:
             user_data = docs[0].to_dict()

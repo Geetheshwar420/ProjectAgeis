@@ -49,28 +49,48 @@ def register():
 
 @api.route('/login', methods=['POST'])
 def login():
-    # Production debugging for "NETWORK ERROR"
-    import time
-    print(f"[{time.strftime('%H:%M:%S')}] [ROUTE] Entering /login route from {request.remote_addr}", flush=True)
+    # Performance Profiling: Track every micro-step to identify Render worker hang
+    start_time = time.time()
+    def log_prof(step):
+        elapsed = time.time() - start_time
+        print(f"[{time.strftime('%H:%M:%S')}] [PROF] {elapsed:0.4f}s: {step} ({request.remote_addr})", flush=True)
+
+    log_prof("Entered /login")
     
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
+    try:
+        data = request.json
+        log_prof("JSON parsed")
+        
+        username = data.get('username')
+        password = data.get('password')
 
-    user = get_user_by_username(username)
-    if user and check_password_hash(user['password_hash'], password):
-        session['user_id'] = user['id']
-        session['username'] = user['username']
-        return jsonify({
-            "message": "Login successful",
-            "user": {
-                "id": user['id'],
-                "username": user['username'],
-                "is_online": user['is_online']
-            }
-        }), 200
+        log_prof(f"Executing get_user_by_username for '{username}'")
+        user = get_user_by_username(username)
+        log_prof("get_user_by_username returned")
 
-    return jsonify({"error": "Invalid credentials"}), 401
+        if user:
+            log_prof("Starting check_password_hash")
+            is_valid = check_password_hash(user['password_hash'], password)
+            log_prof(f"check_password_hash complete: result={is_valid}")
+            
+            if is_valid:
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                log_prof("Session set, returning success")
+                return jsonify({
+                    "message": "Login successful",
+                    "user": {
+                        "id": user['id'],
+                        "username": user['username'],
+                        "is_online": user['is_online']
+                    }
+                }), 200
+        
+        log_prof("Invalid credentials path, returning 401")
+        return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        log_prof(f"CRITICAL ERROR in login: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @api.route('/google_login', methods=['POST'])
 def google_login():
