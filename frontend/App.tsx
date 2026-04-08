@@ -32,7 +32,13 @@ const AppContent: React.FC = () => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
-  const [view, setView] = useState<AppView>('landing');
+  const [view, setView] = useState<AppView>(() => {
+    // Detect mobile for default landing
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 'login';
+    }
+    return 'landing';
+  });
 
   // App State
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -221,7 +227,7 @@ const AppContent: React.FC = () => {
     if (isAuthenticated) {
       setView('app');
     } else if (view === 'app') {
-      setView('landing');
+      setView('login');
     }
   }, [isAuthenticated]);
 
@@ -235,7 +241,7 @@ const AppContent: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    setView('landing');
+    setView('login');
     setActiveChatId(null);
     setChats([]);
     setActiveTab('messages');

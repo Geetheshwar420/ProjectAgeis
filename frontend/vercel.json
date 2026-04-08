@@ -1,7 +1,15 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "env": {
-    "VITE_API_URL": "https://projectageis.onrender.com"
-  }
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    }
+  ]
 }
