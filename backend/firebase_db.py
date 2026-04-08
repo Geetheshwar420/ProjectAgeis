@@ -67,11 +67,18 @@ def initialize_firebase():
             print(f"Firebase initialized using file: {creds_path}")
 
         print(f"[{time.strftime('%H:%M:%S')}] [PROF] Calling firebase_admin.initialize_app...", flush=True)
-        firebase_admin.initialize_app(cred, {
-            'projectId': Config.FIREBASE_PROJECT_ID,
-            'storageBucket': Config.FIREBASE_STORAGE_BUCKET,
-        })
-        print(f"[{time.strftime('%H:%M:%S')}] [PROF] initialize_app complete.", flush=True)
+        try:
+            firebase_admin.initialize_app(cred, {
+                'projectId': Config.FIREBASE_PROJECT_ID,
+                'storageBucket': Config.FIREBASE_STORAGE_BUCKET,
+            })
+            print(f"[{time.strftime('%H:%M:%S')}] [PROF] initialize_app complete.", flush=True)
+        except ValueError:
+            # This happens if it was initialized by another thread just now
+            print(f"[{time.strftime('%H:%M:%S')}] [PROF] Firebase already initialized (ValueError caught).", flush=True)
+        except Exception as e:
+            print(f"[{time.strftime('%H:%M:%S')}] [ERROR] Failed to initialize Firebase: {e}", flush=True)
+            raise e
     
     print(f"[{time.strftime('%H:%M:%S')}] [PROF] Fetching firestore client...", flush=True)
     client = firestore.client()
