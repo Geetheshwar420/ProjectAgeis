@@ -10,6 +10,15 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+// Debug diagnostics (don't log values, just check presence)
+Object.entries(firebaseConfig).forEach(([key, val]) => {
+  if (!val) {
+    console.warn(`[FIREBASE] Missing config: ${key}. Check your Vercel Environment Variables.`);
+  } else {
+    console.log(`[FIREBASE] Config loaded: ${key}`);
+  }
+});
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
