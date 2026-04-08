@@ -4,9 +4,10 @@ import axios from 'axios';
 export const getApiBaseUrl = (): string => {
     const DEFAULT_PROD_API = 'https://secernent-unremotely-wade.ngrok-free.dev';
 
-    // Highest priority: explicit env override
+    // Highest priority: explicit env override. 
+    // Strip trailing slashes AND accidental trailing commas.
     if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL.replace(/\/$/, '');
+        return import.meta.env.VITE_API_URL.replace(/[,\/]+$/, '');
     }
 
     const protocol = window.location.protocol; // 'http:' or 'https:'
