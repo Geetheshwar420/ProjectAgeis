@@ -47,11 +47,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       tailwindcss(),
-      react({
-        // Forced classic runtime to eliminate 'h is not a function' from dependencies
-        jsxRuntime: 'classic',
-        jsxImportSource: 'react',
-      }),
+      react(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.ico', 'apple-touch-icon.png'],
@@ -78,13 +74,6 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-    },
-    esbuild: {
-        // Ultimate fallback for JSX factory compatibility
-        jsxFactory: 'React.createElement',
-        jsxFragment: 'React.Fragment',
-        // Inject React into every file automatically to support classic factory
-        jsxInject: `import React from 'react'`,
     },
     resolve: {
       alias: {

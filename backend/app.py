@@ -1,5 +1,6 @@
 import os
 import sys
+import logging
 
 # Force Firestore HTTP transport (idempotent — also set in wsgi.py for Gunicorn)
 os.environ.setdefault("GOOGLE_CLOUD_FIRESTORE_FORCE_HTTP", "true")
@@ -85,5 +86,5 @@ def add_security_headers(response):
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    logging.info("Starting server on port %s", port)
+    log_ts(f"Starting server on port {port}")
     socketio.run(app, debug=True, use_reloader=False, host='0.0.0.0', port=port)
