@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Central place to compute the API base URL so Axios and Socket.IO stay in sync
 export const getApiBaseUrl = (): string => {
-    const DEFAULT_PROD_API = 'https://projectageis.onrender.com';
+    const DEFAULT_PROD_API = 'https://secernent-unremotely-wade.ngrok-free.dev';
 
     // Highest priority: explicit env override
     if (import.meta.env.VITE_API_URL) {
